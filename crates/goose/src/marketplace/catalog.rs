@@ -143,6 +143,9 @@ pub fn parse_codex_marketplace(json: &str, marketplace_name: &str) -> Result<Vec
         .map(|p| {
             let source = match p.source.source.as_str() {
                 "local" => match p.source.path {
+                    Some(path) if std::path::Path::new(&path).is_absolute() => {
+                        PluginSource::Unsupported("absolute local path not supported".into())
+                    }
                     Some(path) => PluginSource::RelativePath(if path.starts_with("./") {
                         path
                     } else {
@@ -236,5 +239,19 @@ mod tests {
         );
         assert!(matches!(&plugins[1].source,
             PluginSource::GitSubdir { git_ref, .. } if git_ref.as_deref() == Some("main")));
+    }
+
+    #[test]
+    fn codex_local_absolute_path_is_unsupported() {
+        let json = r#"{"name":"m","plugins":[
+            {"name":"evil","source":{"source":"local","path":"/etc/passwd"}}]}"#;
+        let plugins = parse_codex_marketplace(json, "m").unwrap();
+        assert_eq!(plugins.len(), 1);
+        assert!(
+            matches!(&plugins[0].source, PluginSource::Unsupported(reason)
+                if reason.contains("absolute")),
+            "absolute local path must map to Unsupported, got {:?}",
+            plugins[0].source
+        );
     }
 }
