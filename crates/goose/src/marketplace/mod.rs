@@ -1,4 +1,5 @@
 pub mod catalog;
+pub mod fetch;
 pub mod registry;
 
 pub use catalog::{CatalogPlugin, PluginSource};

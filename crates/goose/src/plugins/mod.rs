@@ -310,6 +310,11 @@ fn install_from_checkout_at_root(
     }
 }
 
+/// Thin wrapper exposing the git-clone helper to `crate::marketplace` (fetch_catalog).
+pub(crate) fn clone_marketplace_repo(url: &str, dest: &Path) -> Result<()> {
+    clone_git_repo(url, dest)
+}
+
 fn clone_git_repo(source: &str, destination: &Path) -> Result<()> {
     let output = Command::new("git")
         .arg("clone")
