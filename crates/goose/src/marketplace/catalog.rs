@@ -111,6 +111,67 @@ fn map_claude_object(o: ClaudeSourceObj) -> PluginSource {
     }
 }
 
+// ---- Codex marketplace.json ----
+#[derive(Debug, Deserialize)]
+struct CodexMarketplace {
+    #[serde(default)]
+    plugins: Vec<CodexPlugin>,
+}
+#[derive(Debug, Deserialize)]
+struct CodexPlugin {
+    name: String,
+    #[serde(default)]
+    description: Option<String>,
+    source: CodexSource,
+}
+#[derive(Debug, Deserialize)]
+struct CodexSource {
+    source: String, // "local" | "git-subdir"
+    #[serde(default)]
+    path: Option<String>,
+    #[serde(default)]
+    url: Option<String>,
+    #[serde(default)]
+    r#ref: Option<String>,
+}
+
+pub fn parse_codex_marketplace(json: &str, marketplace_name: &str) -> Result<Vec<CatalogPlugin>> {
+    let doc: CodexMarketplace = serde_json::from_str(json)?;
+    Ok(doc
+        .plugins
+        .into_iter()
+        .map(|p| {
+            let source = match p.source.source.as_str() {
+                "local" => match p.source.path {
+                    Some(path) => PluginSource::RelativePath(if path.starts_with("./") {
+                        path
+                    } else {
+                        format!("./{path}")
+                    }),
+                    None => PluginSource::Unsupported("local without path".into()),
+                },
+                "git-subdir" => match (p.source.url, p.source.path) {
+                    (Some(url), Some(path)) => PluginSource::GitSubdir {
+                        url,
+                        path,
+                        git_ref: p.source.r#ref,
+                    },
+                    _ => PluginSource::Unsupported("git-subdir missing url/path".into()),
+                },
+                other => {
+                    PluginSource::Unsupported(format!("source type '{other}' not supported in v1"))
+                }
+            };
+            CatalogPlugin {
+                name: p.name,
+                description: p.description,
+                source,
+                marketplace: marketplace_name.to_string(),
+            }
+        })
+        .collect())
+}
+
 fn join_rel(root: &str, rel: &str) -> String {
     let rel = rel.trim_start_matches("./");
     let root = root.trim_end_matches('/');
@@ -150,5 +211,30 @@ mod tests {
         assert!(matches!(plugins[2].source, PluginSource::GitSubdir { .. }));
         assert!(matches!(plugins[3].source, PluginSource::Unsupported(_)));
         assert_eq!(plugins[0].marketplace, "company-tools");
+    }
+
+    const CODEX: &str = r#"{
+      "name": "local-example-plugins",
+      "interface": { "displayName": "Local Example Plugins" },
+      "plugins": [
+        { "name": "my-plugin",
+          "source": { "source": "local", "path": "./plugins/my-plugin" },
+          "category": "Productivity" },
+        { "name": "mono",
+          "source": { "source": "git-subdir",
+            "url": "https://github.com/acme/mono.git", "path": "tools/codex", "ref": "main" } }
+      ]
+    }"#;
+
+    #[test]
+    fn parses_codex_sources() {
+        let plugins = parse_codex_marketplace(CODEX, "local-example-plugins").unwrap();
+        assert_eq!(plugins.len(), 2);
+        assert_eq!(
+            plugins[0].source,
+            PluginSource::RelativePath("./plugins/my-plugin".into())
+        );
+        assert!(matches!(&plugins[1].source,
+            PluginSource::GitSubdir { git_ref, .. } if git_ref.as_deref() == Some("main")));
     }
 }
