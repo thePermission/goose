@@ -144,6 +144,17 @@ fn list_installed_plugins_at_root(
     out
 }
 
+/// Toggle a plugin's enabled state in the `plugins` map in `config.yaml`,
+/// keyed by the plugin's absolute install directory path.
+pub fn set_plugin_enabled(name: &str, enabled: bool) -> Result<()> {
+    let path = plugin_install_dir().join(name);
+    crate::plugins::discovery::set_plugin_enabled_path(
+        crate::config::Config::global(),
+        &path.to_string_lossy(),
+        enabled,
+    )
+}
+
 pub fn installed_plugin_skill_dirs() -> Vec<PathBuf> {
     let plugins_dir = plugin_install_dir();
     for update in auto_update_plugins_at_root(Utc::now(), &plugins_dir) {

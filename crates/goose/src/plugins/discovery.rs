@@ -126,6 +126,20 @@ pub(crate) fn plugin_enabled_map(config: &Config) -> HashMap<String, bool> {
     entries.into_iter().map(|(k, v)| (k, v.enabled)).collect()
 }
 
+/// Set the enabled state for a plugin in the `plugins` map in config.yaml,
+/// keyed by the plugin's filesystem path.
+pub(crate) fn set_plugin_enabled_path(
+    config: &Config,
+    path_key: &str,
+    enabled: bool,
+) -> anyhow::Result<()> {
+    let mut entries: HashMap<String, PluginConfigEntry> =
+        config.get_param(PLUGINS_CONFIG_KEY).unwrap_or_default();
+    entries.insert(path_key.to_string(), PluginConfigEntry { enabled });
+    config.set_param(PLUGINS_CONFIG_KEY, serde_json::to_value(&entries)?)?;
+    Ok(())
+}
+
 fn is_enabled(plugin_name: &str, scoped_settings: &[(SettingsScope, PluginSettings)]) -> bool {
     for scope in [
         SettingsScope::Local,
@@ -412,6 +426,19 @@ mod tests {
 
         let found = discover_enabled_plugins_with_config(Some(project), &config);
         assert!(found.iter().all(|p| p.name != "demo"));
+    }
+
+    #[test]
+    fn set_plugin_enabled_path_roundtrip() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cfg = Config::new(tmp.path().join("config.yaml"), "k").unwrap();
+        set_plugin_enabled_path(&cfg, "/x/plugins/demo", false).unwrap();
+        assert_eq!(
+            plugin_enabled_map(&cfg).get("/x/plugins/demo"),
+            Some(&false)
+        );
+        set_plugin_enabled_path(&cfg, "/x/plugins/demo", true).unwrap();
+        assert_eq!(plugin_enabled_map(&cfg).get("/x/plugins/demo"), Some(&true));
     }
 
     #[test]
