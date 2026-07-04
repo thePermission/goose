@@ -310,8 +310,10 @@ fn install_from_checkout_at_root(
     }
 }
 
-/// Thin wrapper exposing the git-clone helper to `crate::marketplace` (fetch_catalog).
-pub(crate) fn clone_marketplace_repo(url: &str, dest: &Path) -> Result<()> {
+/// Thin wrapper exposing the git-clone helper to `crate::marketplace` (fetch_catalog) and to
+/// downstream crates such as `goose-cli` (e.g. `marketplace install`, which needs the checkout
+/// to resolve `PluginSource::RelativePath` entries against the same clone used for the catalog).
+pub fn clone_marketplace_repo(url: &str, dest: &Path) -> Result<()> {
     clone_git_repo(url, dest)
 }
 

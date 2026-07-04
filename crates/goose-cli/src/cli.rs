@@ -16,6 +16,10 @@ use goose_mcp::{AutoVisualiserRouter, ComputerControllerServer, MemoryServer, Tu
 use crate::commands::configure::configure_telemetry_consent_dialog;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
+use crate::commands::marketplace::{
+    handle_add, handle_browse, handle_install, handle_list as handle_marketplace_list,
+    handle_remove,
+};
 use crate::commands::plugin::{handle_plugin_install, handle_plugin_update};
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
@@ -726,6 +730,56 @@ enum PluginCommand {
 }
 
 #[derive(Subcommand)]
+enum MarketplaceCommand {
+    /// Add a marketplace source
+    #[command(about = "Add a marketplace source")]
+    Add {
+        #[arg(help = "Git URL of the marketplace repository")]
+        location: String,
+
+        #[arg(long, value_enum, help = "Marketplace kind")]
+        kind: goose::marketplace::MarketplaceKind,
+
+        #[arg(long, help = "Optional name (defaults to repo name)")]
+        name: Option<String>,
+    },
+
+    /// List configured marketplaces
+    #[command(about = "List configured marketplaces")]
+    List,
+
+    /// Remove a marketplace by name
+    #[command(about = "Remove a marketplace by name")]
+    Remove {
+        #[arg(help = "Name of the marketplace to remove")]
+        name: String,
+    },
+
+    /// List plugins offered by a marketplace
+    #[command(about = "List plugins offered by a marketplace")]
+    Browse {
+        #[arg(help = "Name of the marketplace to browse")]
+        name: String,
+    },
+
+    /// Install a plugin from a marketplace
+    #[command(about = "Install a plugin from a marketplace")]
+    Install {
+        #[arg(help = "Name of the configured marketplace")]
+        marketplace: String,
+
+        #[arg(help = "Name of the plugin to install")]
+        plugin: String,
+
+        #[arg(
+            long,
+            help = "Automatically update this plugin before plugin skills are loaded"
+        )]
+        auto_update: bool,
+    },
+}
+
+#[derive(Subcommand)]
 enum SkillsCommand {
     /// List all skills available to the goose agent
     #[command(about = "List all skills available to the goose agent")]
@@ -990,6 +1044,13 @@ enum Command {
     Plugin {
         #[command(subcommand)]
         command: PluginCommand,
+    },
+
+    /// Manage plugin marketplaces
+    #[command(about = "Manage plugin marketplaces")]
+    Marketplace {
+        #[command(subcommand)]
+        command: MarketplaceCommand,
     },
 
     /// Manage scheduled jobs
@@ -1351,6 +1412,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Skills { .. }) => "skills",
         Some(Command::Plugin { .. }) => "plugin",
+        Some(Command::Marketplace { .. }) => "marketplace",
         Some(Command::Term { .. }) => "term",
         #[cfg(feature = "tui")]
         Some(Command::Tui { .. }) => "tui",
@@ -1976,6 +2038,24 @@ fn handle_plugin_subcommand(command: PluginCommand) -> Result<()> {
     }
 }
 
+fn handle_marketplace_subcommand(command: MarketplaceCommand) -> Result<()> {
+    match command {
+        MarketplaceCommand::Add {
+            location,
+            kind,
+            name,
+        } => handle_add(&location, kind, name),
+        MarketplaceCommand::List => handle_marketplace_list(),
+        MarketplaceCommand::Remove { name } => handle_remove(&name),
+        MarketplaceCommand::Browse { name } => handle_browse(&name),
+        MarketplaceCommand::Install {
+            marketplace,
+            plugin,
+            auto_update,
+        } => handle_install(&marketplace, &plugin, auto_update),
+    }
+}
+
 fn handle_recipe_subcommand(command: RecipeCommand) -> Result<()> {
     match command {
         RecipeCommand::Validate { recipe_name } => handle_validate(&recipe_name),
@@ -2317,6 +2397,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
         Some(Command::Skills { command }) => handle_skills_subcommand(command).await,
         Some(Command::Plugin { command }) => handle_plugin_subcommand(command),
+        Some(Command::Marketplace { command }) => handle_marketplace_subcommand(command),
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
         #[cfg(feature = "tui")]
         Some(Command::Tui { args }) => crate::commands::tui::handle_tui(args),
