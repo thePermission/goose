@@ -258,6 +258,29 @@ impl GooseAcpAgent {
         self.on_marketplace_install(req).await
     }
 
+    #[custom_method(ListInstalledPluginsRequest)]
+    async fn dispatch_plugins_list(
+        &self,
+    ) -> Result<ListInstalledPluginsResponse, agent_client_protocol::Error> {
+        self.on_plugins_list().await
+    }
+
+    #[custom_method(SetPluginEnabledRequest)]
+    async fn dispatch_plugins_set_enabled(
+        &self,
+        req: SetPluginEnabledRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_plugins_set_enabled(req).await
+    }
+
+    #[custom_method(UpdatePluginRequest)]
+    async fn dispatch_plugins_update(
+        &self,
+        req: UpdatePluginRequest,
+    ) -> Result<InstalledPluginResult, agent_client_protocol::Error> {
+        self.on_plugins_update(req).await
+    }
+
     #[custom_method(ListProvidersRequest)]
     async fn dispatch_list_providers(
         &self,

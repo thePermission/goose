@@ -128,6 +128,41 @@ impl GooseAcpAgent {
         .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
         Ok(install_to_result(install))
     }
+
+    pub(super) async fn on_plugins_list(
+        &self,
+    ) -> Result<ListInstalledPluginsResponse, agent_client_protocol::Error> {
+        let plugins = crate::plugins::list_installed_plugins()
+            .into_iter()
+            .map(|p| InstalledPluginInfo {
+                name: p.name,
+                version: p.version,
+                source: p.source,
+                enabled: p.enabled,
+                auto_update: p.auto_update,
+                updatable: p.updatable,
+            })
+            .collect();
+        Ok(ListInstalledPluginsResponse { plugins })
+    }
+
+    pub(super) async fn on_plugins_set_enabled(
+        &self,
+        req: SetPluginEnabledRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        crate::plugins::set_plugin_enabled(&req.name, req.enabled)
+            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
+        Ok(EmptyResponse {})
+    }
+
+    pub(super) async fn on_plugins_update(
+        &self,
+        req: UpdatePluginRequest,
+    ) -> Result<InstalledPluginResult, agent_client_protocol::Error> {
+        let install = crate::plugins::update_plugin(&req.name)
+            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
+        Ok(install_to_result(install))
+    }
 }
 
 fn install_to_result(install: crate::plugins::PluginInstall) -> InstalledPluginResult {
