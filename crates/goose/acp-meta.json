@@ -121,6 +121,46 @@
       "responseType": "GetSessionExtensionsResponse_unstable"
     },
     {
+      "method": "_goose/unstable/marketplace/list",
+      "requestType": "ListMarketplacesRequest_unstable",
+      "responseType": "ListMarketplacesResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/marketplace/add",
+      "requestType": "AddMarketplaceRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/marketplace/remove",
+      "requestType": "RemoveMarketplaceRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/marketplace/browse",
+      "requestType": "BrowseMarketplaceRequest_unstable",
+      "responseType": "BrowseMarketplaceResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/marketplace/install",
+      "requestType": "InstallMarketplacePluginRequest_unstable",
+      "responseType": "InstalledPluginResult_unstable"
+    },
+    {
+      "method": "_goose/unstable/plugins/list",
+      "requestType": "ListInstalledPluginsRequest_unstable",
+      "responseType": "ListInstalledPluginsResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/plugins/set-enabled",
+      "requestType": "SetPluginEnabledRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/plugins/update",
+      "requestType": "UpdatePluginRequest_unstable",
+      "responseType": "InstalledPluginResult_unstable"
+    },
+    {
       "method": "_goose/unstable/providers/list",
       "requestType": "ListProvidersRequest_unstable",
       "responseType": "ListProvidersResponse_unstable"
