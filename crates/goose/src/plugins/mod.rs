@@ -152,6 +152,23 @@ fn install_plugin_with_options_at_root(
     )
 }
 
+pub fn install_plugin_from_checkout(
+    checkout_dir: &Path,
+    source: &str,
+    options: PluginInstallOptions,
+) -> Result<PluginInstall> {
+    install_plugin_from_checkout_at_root(checkout_dir, source, options, &plugin_install_dir())
+}
+
+fn install_plugin_from_checkout_at_root(
+    checkout_dir: &Path,
+    source: &str,
+    options: PluginInstallOptions,
+    install_root: &Path,
+) -> Result<PluginInstall> {
+    install_from_checkout_at_root(source, checkout_dir, install_root, &options, None)
+}
+
 pub fn update_plugin(name: &str) -> Result<PluginInstall> {
     update_plugin_at_root(Utc::now(), &plugin_install_dir(), name)
 }
@@ -526,6 +543,35 @@ mod tests {
         assert!(err
             .to_string()
             .contains("cannot be updated with this command"));
+    }
+
+    #[test]
+    fn installs_plugin_from_existing_checkout() {
+        let tmp = tempfile::tempdir().unwrap();
+        let checkout = tmp.path().join("co");
+        fs::create_dir_all(&checkout).unwrap();
+        fs::write(
+            checkout.join("plugin.json"),
+            r#"{"name":"p","version":"1.0.0","description":"d"}"#,
+        )
+        .unwrap();
+        fs::create_dir_all(checkout.join("skills/s")).unwrap();
+        fs::write(
+            checkout.join("skills/s/SKILL.md"),
+            "---\nname: s\ndescription: d\n---\nb",
+        )
+        .unwrap();
+        let root = tmp.path().join("root");
+
+        let install = install_plugin_from_checkout_at_root(
+            &checkout,
+            "mysource",
+            PluginInstallOptions::default(),
+            &root,
+        )
+        .unwrap();
+        assert_eq!(install.name, "p");
+        assert_eq!(install.source, "mysource");
     }
 
     fn write_gemini_plugin(repo: &Path, version: &str, description: &str) {
