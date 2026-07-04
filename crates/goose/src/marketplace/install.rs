@@ -36,9 +36,9 @@ fn install_catalog_plugin_at_root(
                 install_root,
             )
         }
-        PluginSource::GitSubdir { url, path, .. } => {
+        PluginSource::GitSubdir { url, path, git_ref } => {
             let tmp = tempfile::tempdir()?;
-            plugins::clone_marketplace_repo(url, tmp.path())?;
+            plugins::clone_marketplace_repo_ref(url, tmp.path(), git_ref.as_deref())?;
             let dir = tmp.path().join(path.trim_start_matches("./"));
             plugins::install_plugin_from_checkout_at_root(
                 &dir,
@@ -47,9 +47,9 @@ fn install_catalog_plugin_at_root(
                 install_root,
             )
         }
-        PluginSource::Git { url, .. } => {
+        PluginSource::Git { url, git_ref } => {
             let tmp = tempfile::tempdir()?;
-            plugins::clone_marketplace_repo(url, tmp.path())?;
+            plugins::clone_marketplace_repo_ref(url, tmp.path(), git_ref.as_deref())?;
             plugins::install_plugin_from_checkout_at_root(
                 tmp.path(),
                 &source_label,

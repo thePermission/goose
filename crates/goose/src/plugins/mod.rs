@@ -317,6 +317,58 @@ pub fn clone_marketplace_repo(url: &str, dest: &Path) -> Result<()> {
     clone_git_repo(url, dest)
 }
 
+/// Like [`clone_marketplace_repo`], but honors a pinned `git_ref` (tag / branch / SHA).
+///
+/// With `git_ref == None` this behaves exactly like [`clone_marketplace_repo`]
+/// (shallow `--depth 1` clone of the default branch). With `Some(r)` it does a
+/// full clone (so arbitrary SHAs are reachable — a shallow clone cannot check
+/// out an arbitrary commit) and then `git -C <dest> checkout <r>`.
+pub(crate) fn clone_marketplace_repo_ref(
+    url: &str,
+    dest: &Path,
+    git_ref: Option<&str>,
+) -> Result<()> {
+    match git_ref {
+        None => clone_git_repo(url, dest),
+        Some(git_ref) => clone_git_repo_at_ref(url, dest, git_ref),
+    }
+}
+
+fn clone_git_repo_at_ref(source: &str, destination: &Path, git_ref: &str) -> Result<()> {
+    // Full clone (no `--depth 1`) so arbitrary SHAs / tags / branches are reachable;
+    // a shallow clone only fetches the default-branch tip and cannot check out a pin.
+    let output = Command::new("git")
+        .arg("clone")
+        .arg(source)
+        .arg(destination)
+        .set_no_window()
+        .output()
+        .map_err(|e| anyhow!("Failed to run git clone: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let message = if stderr.is_empty() { stdout } else { stderr };
+        bail!("Failed to clone plugin repository: {message}");
+    }
+
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(destination)
+        .arg("checkout")
+        .arg(git_ref)
+        .set_no_window()
+        .output()
+        .map_err(|e| anyhow!("Failed to run git checkout: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let message = if stderr.is_empty() { stdout } else { stderr };
+        bail!("Failed to check out pinned ref '{git_ref}': {message}");
+    }
+
+    Ok(())
+}
+
 fn clone_git_repo(source: &str, destination: &Path) -> Result<()> {
     let output = Command::new("git")
         .arg("clone")
@@ -594,6 +646,46 @@ mod tests {
             format!("---\nname: audit\ndescription: {description}\n---\nDo an audit."),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn clone_marketplace_repo_ref_honors_pinned_ref() {
+        let repo = tempfile::tempdir().unwrap();
+        init_git_repo(repo.path());
+        fs::write(repo.path().join("file.txt"), "v1").unwrap();
+        commit_git_repo(repo.path(), "first");
+        let first_sha = git_rev_parse(repo.path(), "HEAD");
+        run_git(repo.path(), &["tag", "v1"]);
+
+        fs::write(repo.path().join("file.txt"), "v2").unwrap();
+        commit_git_repo(repo.path(), "second");
+        let second_sha = git_rev_parse(repo.path(), "HEAD");
+        assert_ne!(first_sha, second_sha);
+
+        let dest = tempfile::tempdir().unwrap();
+        let checkout = dest.path().join("co");
+        clone_marketplace_repo_ref(repo.path().to_str().unwrap(), &checkout, Some("v1")).unwrap();
+
+        let head = git_rev_parse(&checkout, "HEAD");
+        assert_eq!(
+            head, first_sha,
+            "checkout must be pinned to tag v1 (first commit), not the tip"
+        );
+    }
+
+    fn git_rev_parse(repo: &Path, rev: &str) -> String {
+        let output = Command::new("git")
+            .args(["rev-parse", rev])
+            .current_dir(repo)
+            .set_no_window()
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git rev-parse {rev} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
     }
 
     fn init_git_repo(repo: &Path) {
