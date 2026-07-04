@@ -95,6 +95,7 @@ mod list_sessions;
 mod load_session;
 mod local_inference;
 mod manage_sessions;
+mod marketplace;
 mod new_session;
 mod onboarding;
 mod prompts;
