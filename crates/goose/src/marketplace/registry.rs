@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::{Config, ConfigError};
 use crate::marketplace::MarketplaceSource;
 use anyhow::{bail, Result};
 
@@ -11,7 +11,8 @@ pub fn list_marketplaces() -> Result<Vec<MarketplaceSource>> {
 pub fn list_marketplaces_with_config(config: &Config) -> Result<Vec<MarketplaceSource>> {
     match config.get_param::<Vec<MarketplaceSource>>(KEY) {
         Ok(v) => Ok(v),
-        Err(_) => Ok(Vec::new()), // Key nicht gesetzt -> leer
+        Err(ConfigError::NotFound(_)) => Ok(Vec::new()), // Key nicht gesetzt -> leer
+        Err(e) => Err(e.into()), // genuine error (e.g. deserialization) must propagate
     }
 }
 
@@ -21,7 +22,7 @@ pub fn add_marketplace_with_config(config: &Config, src: MarketplaceSource) -> R
         bail!("Marketplace '{}' already exists", src.name);
     }
     all.push(src);
-    config.set_param(KEY, serde_json::to_value(&all)?)?;
+    config.set_param(KEY, &all)?;
     Ok(())
 }
 
@@ -34,7 +35,7 @@ pub fn remove_marketplace_with_config(config: &Config, name: &str) -> Result<boo
     let before = all.len();
     all.retain(|m| m.name != name);
     let removed = all.len() != before;
-    config.set_param(KEY, serde_json::to_value(&all)?)?;
+    config.set_param(KEY, &all)?;
     Ok(removed)
 }
 
@@ -88,5 +89,24 @@ mod tests {
         };
         add_marketplace_with_config(&cfg, src.clone()).unwrap();
         assert!(add_marketplace_with_config(&cfg, src).is_err());
+    }
+
+    #[test]
+    fn unset_key_returns_empty() {
+        let cfg = temp_config();
+        assert!(list_marketplaces_with_config(&cfg).unwrap().is_empty());
+    }
+
+    #[test]
+    fn malformed_stored_value_is_not_swallowed() {
+        let cfg = temp_config();
+        // Store a value that cannot deserialize into Vec<MarketplaceSource>.
+        cfg.set_param(KEY, serde_json::json!("not-a-list")).unwrap();
+
+        let result = list_marketplaces_with_config(&cfg);
+        assert!(
+            result.is_err(),
+            "a genuine deserialization error must be propagated, not swallowed as empty"
+        );
     }
 }
