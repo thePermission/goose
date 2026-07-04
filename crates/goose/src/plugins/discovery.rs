@@ -119,6 +119,13 @@ fn filter_by_config(plugins: Vec<DiscoveredPlugin>, config: &Config) -> Vec<Disc
     enabled
 }
 
+/// Read the `plugins` enable-map from config.yaml as path -> enabled.
+pub(crate) fn plugin_enabled_map(config: &Config) -> HashMap<String, bool> {
+    let entries: HashMap<String, PluginConfigEntry> =
+        config.get_param(PLUGINS_CONFIG_KEY).unwrap_or_default();
+    entries.into_iter().map(|(k, v)| (k, v.enabled)).collect()
+}
+
 fn is_enabled(plugin_name: &str, scoped_settings: &[(SettingsScope, PluginSettings)]) -> bool {
     for scope in [
         SettingsScope::Local,
