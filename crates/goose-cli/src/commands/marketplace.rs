@@ -4,7 +4,7 @@ use goose::marketplace::{
     fetch::{fetch_catalog, fetch_catalog_from_dir},
     install::install_catalog_plugin,
     registry::{add_marketplace, list_marketplaces, remove_marketplace},
-    MarketplaceKind, MarketplaceSource,
+    MarketplaceKind, MarketplaceSource, PluginSource,
 };
 use goose::plugins::PluginInstallOptions;
 
@@ -75,6 +75,7 @@ pub fn handle_install(marketplace: &str, plugin: &str, auto_update: bool) -> Res
         .ok_or_else(|| {
             anyhow::anyhow!("plugin '{}' not in marketplace '{}'", plugin, marketplace)
         })?;
+    let source_location = describe_source(&entry.source);
     let install = install_catalog_plugin(&entry, tmp.path(), PluginInstallOptions { auto_update })?;
     println!(
         "{} Installed {} plugin '{}' ({})",
@@ -83,10 +84,53 @@ pub fn handle_install(marketplace: &str, plugin: &str, auto_update: bool) -> Res
         style(&install.name).bold(),
         install.version
     );
-    for s in &install.skills {
-        println!("    - {}", s.name);
+    println!("    source: {marketplace} → {source_location}");
+    if install.skills.is_empty() {
+        println!("    skills: (none)");
+    } else {
+        println!("    skills:");
+        for s in &install.skills {
+            println!("      - {}", s.name);
+        }
     }
+
+    // Trust surface: a plugin may carry hooks (local shell commands) and MCP
+    // servers, which run on your machine. Surface them and warn — non-interactive.
+    let has_hooks = install.directory.join("hooks/hooks.json").is_file();
+    let has_mcp = install.directory.join(".mcp.json").is_file();
+    println!(
+        "{} Review before use: plugins may include {} and {} — code that runs local shell commands and services on your machine.",
+        style("⚠").yellow(),
+        if has_hooks {
+            style("hooks (present)").yellow().to_string()
+        } else {
+            "hooks".to_string()
+        },
+        if has_mcp {
+            style("MCP servers (present)").yellow().to_string()
+        } else {
+            "MCP servers".to_string()
+        },
+    );
+    println!("    installed at: {}", install.directory.display());
     Ok(())
+}
+
+/// Human-readable source location for the trust line printed on install
+/// (marketplace name is printed separately by the caller).
+fn describe_source(source: &PluginSource) -> String {
+    match source {
+        PluginSource::RelativePath(rel) => format!("{rel} (local to marketplace)"),
+        PluginSource::GitSubdir { url, path, git_ref } => match git_ref {
+            Some(r) => format!("{url} (subdir {path}, ref {r})"),
+            None => format!("{url} (subdir {path})"),
+        },
+        PluginSource::Git { url, git_ref } => match git_ref {
+            Some(r) => format!("{url} (ref {r})"),
+            None => url.clone(),
+        },
+        PluginSource::Unsupported(reason) => format!("unsupported ({reason})"),
+    }
 }
 
 fn find(name: &str) -> Result<MarketplaceSource> {
