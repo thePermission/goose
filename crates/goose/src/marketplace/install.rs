@@ -202,6 +202,116 @@ mod tests {
         );
     }
 
+    /// End-to-end (network-free): build a local git-repo marketplace, then drive
+    /// the core register -> fetch -> install pipeline against the local path.
+    /// Also exercises FIX A: the manifest lives ONLY at `.claude-plugin/marketplace.json`.
+    #[test]
+    fn e2e_register_fetch_install_from_local_git_marketplace() {
+        use crate::config::Config;
+        use crate::marketplace::fetch::fetch_catalog_from_dir;
+        use crate::marketplace::registry::{
+            add_marketplace_with_config, list_marketplaces_with_config,
+        };
+        use crate::marketplace::{MarketplaceKind, MarketplaceSource};
+        use std::process::Command;
+
+        let tmp = tempfile::tempdir().unwrap();
+
+        // 1. Local git-repo fixture marketplace (Claude layout).
+        let repo = tmp.path().join("repo");
+        std::fs::create_dir_all(repo.join(".claude-plugin")).unwrap();
+        std::fs::write(
+            repo.join(".claude-plugin/marketplace.json"),
+            r#"{"name":"demo-market","owner":{"name":"o"},
+                "plugins":[{"name":"demo","source":"./plugins/demo","description":"a demo"}]}"#,
+        )
+        .unwrap();
+        let demo = repo.join("plugins/demo");
+        std::fs::create_dir_all(demo.join(".claude-plugin")).unwrap();
+        std::fs::write(
+            demo.join(".claude-plugin/plugin.json"),
+            r#"{"name":"demo","version":"1.0.0","description":"a demo"}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(demo.join("skills/x")).unwrap();
+        std::fs::write(
+            demo.join("skills/x/SKILL.md"),
+            "---\nname: x\ndescription: does x\n---\nBody.",
+        )
+        .unwrap();
+
+        let git = |args: &[&str]| {
+            let out = Command::new("git")
+                .args(args)
+                .current_dir(&repo)
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "git {args:?}: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        };
+        git(&["init"]);
+        git(&["config", "user.email", "t@example.com"]);
+        git(&["config", "user.name", "t"]);
+        git(&["add", "."]);
+        git(&["commit", "-m", "init"]);
+
+        // 2. register in the Config-backed registry.
+        let cfg = Config::new(tmp.path().join("config.yaml"), "test-key").unwrap();
+        add_marketplace_with_config(
+            &cfg,
+            MarketplaceSource {
+                name: "demo-market".into(),
+                kind: MarketplaceKind::Claude,
+                location: repo.to_string_lossy().into_owned(),
+                enabled: true,
+            },
+        )
+        .unwrap();
+        let src = list_marketplaces_with_config(&cfg)
+            .unwrap()
+            .into_iter()
+            .find(|m| m.name == "demo-market")
+            .expect("registered marketplace should be listed");
+
+        // 3. fetch: clone the registered local repo, parse catalog from the checkout.
+        let checkout = tmp.path().join("checkout");
+        plugins::clone_marketplace_repo(&src.location, &checkout).unwrap();
+        let catalog = fetch_catalog_from_dir(&src, &checkout).unwrap();
+        assert_eq!(catalog.len(), 1);
+        let entry = catalog
+            .into_iter()
+            .find(|p| p.name == "demo")
+            .expect("demo plugin in catalog");
+
+        // 4. install into an ISOLATED temp root.
+        let install_root = tmp.path().join("install");
+        let install = install_catalog_plugin_at_root(
+            &entry,
+            &checkout,
+            PluginInstallOptions::default(),
+            &install_root,
+        )
+        .unwrap();
+
+        assert_eq!(install.name, "demo");
+        assert_eq!(install.version, "1.0.0");
+        assert_eq!(install.format, crate::plugins::PluginFormat::Claude);
+        assert_eq!(install.skills.len(), 1, "skills: {:?}", install.skills);
+        assert_eq!(
+            install.skills[0].name, "demo:x",
+            "imported skill should be namespaced <plugin>:<skill>"
+        );
+        assert!(
+            install.directory.starts_with(&install_root),
+            "plugin must install under the isolated root, got {}",
+            install.directory.display()
+        );
+        assert!(install.directory.join("skills/x/SKILL.md").is_file());
+    }
+
     #[test]
     fn unsupported_source_errors() {
         let tmp = tempfile::tempdir().unwrap();
