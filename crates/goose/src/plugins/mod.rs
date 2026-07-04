@@ -20,6 +20,8 @@ const AUTO_UPDATE_INTERVAL_HOURS: i64 = 24;
 pub enum PluginFormat {
     Gemini,
     OpenPlugins,
+    Claude,
+    Codex,
 }
 
 impl std::fmt::Display for PluginFormat {
@@ -27,6 +29,8 @@ impl std::fmt::Display for PluginFormat {
         match self {
             PluginFormat::Gemini => write!(f, "gemini"),
             PluginFormat::OpenPlugins => write!(f, "open-plugins"),
+            PluginFormat::Claude => write!(f, "claude"),
+            PluginFormat::Codex => write!(f, "codex"),
         }
     }
 }

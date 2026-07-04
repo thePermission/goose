@@ -11,7 +11,9 @@ use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::{Component, Path, PathBuf};
 
-const MANIFESTS: [&str; 3] = [
+const MANIFESTS: [&str; 5] = [
+    ".claude-plugin/plugin.json",
+    ".codex-plugin/plugin.json",
     ".goose-plugin/plugin.json",
     ".plugin/plugin.json",
     "plugin.json",
@@ -118,7 +120,7 @@ fn install_from_manifest(
     Ok(PluginInstall {
         name: plugin_name,
         version: manifest.version.unwrap_or_else(|| "unknown".to_string()),
-        format: PluginFormat::OpenPlugins,
+        format: format_for_manifest(checkout_dir),
         source: source.to_string(),
         directory: destination,
         skills: imported_skills,
@@ -178,6 +180,16 @@ fn manifest_path(plugin_dir: &Path) -> Option<PathBuf> {
         .iter()
         .map(|relative| plugin_dir.join(relative))
         .find(|path| path.is_file())
+}
+
+fn format_for_manifest(checkout_dir: &Path) -> PluginFormat {
+    if checkout_dir.join(".claude-plugin/plugin.json").is_file() {
+        PluginFormat::Claude
+    } else if checkout_dir.join(".codex-plugin/plugin.json").is_file() {
+        PluginFormat::Codex
+    } else {
+        PluginFormat::OpenPlugins
+    }
 }
 
 fn has_component_marker(plugin_dir: &Path) -> bool {
@@ -524,6 +536,70 @@ pub(in crate::plugins) fn dedupe_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn installs_claude_plugin_and_labels_format() {
+        let tmp = tempfile::tempdir().unwrap();
+        let checkout = tmp.path().join("checkout");
+        std::fs::create_dir_all(checkout.join(".claude-plugin")).unwrap();
+        std::fs::write(
+            checkout.join(".claude-plugin/plugin.json"),
+            r#"{"name":"quality","version":"1.0.0","description":"d"}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(checkout.join("skills/review")).unwrap();
+        std::fs::write(
+            checkout.join("skills/review/SKILL.md"),
+            "---\nname: review\ndescription: r\n---\nbody",
+        )
+        .unwrap();
+        let root = tmp.path().join("install");
+
+        let install = try_install_from_manifest_at_root(
+            "https://example/x.git",
+            &checkout,
+            &root,
+            &crate::plugins::PluginInstallOptions::default(),
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(install.format, crate::plugins::PluginFormat::Claude);
+        assert_eq!(install.skills.len(), 1);
+        assert_eq!(install.skills[0].name, "quality:review");
+    }
+
+    #[test]
+    fn installs_codex_plugin_and_labels_format() {
+        let tmp = tempfile::tempdir().unwrap();
+        let checkout = tmp.path().join("checkout");
+        std::fs::create_dir_all(checkout.join(".codex-plugin")).unwrap();
+        std::fs::write(
+            checkout.join(".codex-plugin/plugin.json"),
+            r#"{"name":"quality","version":"1.0.0","description":"d"}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(checkout.join("skills/review")).unwrap();
+        std::fs::write(
+            checkout.join("skills/review/SKILL.md"),
+            "---\nname: review\ndescription: r\n---\nbody",
+        )
+        .unwrap();
+        let root = tmp.path().join("install");
+
+        let install = try_install_from_manifest_at_root(
+            "https://example/x.git",
+            &checkout,
+            &root,
+            &crate::plugins::PluginInstallOptions::default(),
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(install.format, crate::plugins::PluginFormat::Codex);
+        assert_eq!(install.skills.len(), 1);
+        assert_eq!(install.skills[0].name, "quality:review");
+    }
 
     #[test]
     fn installs_open_plugins_skills() {
