@@ -1,4 +1,7 @@
+pub mod catalog;
 pub mod registry;
+
+pub use catalog::{CatalogPlugin, PluginSource};
 
 use serde::{Deserialize, Serialize};
 
