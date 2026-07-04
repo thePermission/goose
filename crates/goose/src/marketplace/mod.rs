@@ -1,8 +1,10 @@
 pub mod catalog;
 pub mod fetch;
+pub mod install;
 pub mod registry;
 
 pub use catalog::{CatalogPlugin, PluginSource};
+pub use install::install_catalog_plugin;
 
 use serde::{Deserialize, Serialize};
 

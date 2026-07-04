@@ -160,7 +160,7 @@ pub fn install_plugin_from_checkout(
     install_plugin_from_checkout_at_root(checkout_dir, source, options, &plugin_install_dir())
 }
 
-fn install_plugin_from_checkout_at_root(
+pub(crate) fn install_plugin_from_checkout_at_root(
     checkout_dir: &Path,
     source: &str,
     options: PluginInstallOptions,
