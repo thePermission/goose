@@ -19,7 +19,7 @@ check-everything:
 # Default release command
 release-binary:
     @echo "Building release version..."
-    cargo build --release -p goose-cli --bin goose
+    cargo build --release -p goose-cli --bin proose
     @just copy-binary
     @echo "Generating OpenAPI schema..."
     cargo run -p goose-server --bin generate_schema
@@ -42,24 +42,24 @@ release-intel:
 
 copy-binary BUILD_MODE="release":
     @rm -f ./ui/desktop/src/bin/goosed
-    @if [ -f ./target/{{BUILD_MODE}}/goose ]; then \
-        echo "Copying goose CLI binary from target/{{BUILD_MODE}}..."; \
-        rm -f ./ui/desktop/src/bin/goose; \
-        cp -p ./target/{{BUILD_MODE}}/goose ./ui/desktop/src/bin/; \
+    @if [ -f ./target/{{BUILD_MODE}}/proose ]; then \
+        echo "Copying proose CLI binary from target/{{BUILD_MODE}}..."; \
+        rm -f ./ui/desktop/src/bin/proose; \
+        cp -p ./target/{{BUILD_MODE}}/proose ./ui/desktop/src/bin/; \
     else \
-        echo "goose CLI binary not found in target/{{BUILD_MODE}}"; \
+        echo "proose CLI binary not found in target/{{BUILD_MODE}}"; \
         exit 1; \
     fi
 
 # Copy binary command for Intel build
 copy-binary-intel:
     @rm -f ./ui/desktop/src/bin/goosed
-    @if [ -f ./target/x86_64-apple-darwin/release/goose ]; then \
-        echo "Copying Intel goose CLI binary to ui/desktop/src/bin..."; \
-        rm -f ./ui/desktop/src/bin/goose; \
-        cp -p ./target/x86_64-apple-darwin/release/goose ./ui/desktop/src/bin/; \
+    @if [ -f ./target/x86_64-apple-darwin/release/proose ]; then \
+        echo "Copying Intel proose CLI binary to ui/desktop/src/bin..."; \
+        rm -f ./ui/desktop/src/bin/proose; \
+        cp -p ./target/x86_64-apple-darwin/release/proose ./ui/desktop/src/bin/; \
     else \
-        echo "Intel goose CLI binary not found."; \
+        echo "Intel proose CLI binary not found."; \
         exit 1; \
     fi
 
@@ -71,11 +71,11 @@ copy-binary-windows:
 
 [windows]
 copy-binary-windows:
-    @powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'if (Test-Path ./target/x86_64-pc-windows-msvc/release/goose.exe) { \
+    @powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'if (Test-Path ./target/x86_64-pc-windows-msvc/release/proose.exe) { \
         Write-Host "Copying Windows binary to ui/desktop/src/bin..."; \
         New-Item -ItemType Directory -Force "./ui/desktop/src/bin" | Out-Null; \
         Remove-Item -Path "./ui/desktop/src/bin/goosed.exe" -Force -ErrorAction SilentlyContinue; \
-        Copy-Item -Path "./target/x86_64-pc-windows-msvc/release/goose.exe" -Destination "./ui/desktop/src/bin/" -Force; \
+        Copy-Item -Path "./target/x86_64-pc-windows-msvc/release/proose.exe" -Destination "./ui/desktop/src/bin/" -Force; \
     } else { \
         Write-Host "Windows binary not found." -ForegroundColor Red; \
         exit 1; \
