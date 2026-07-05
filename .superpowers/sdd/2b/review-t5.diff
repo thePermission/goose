@@ -1,0 +1,331 @@
+# Review package: c754ed95c..63242c052
+
+## Commits
+63242c052 feat(marketplaces): compose MarketplacesView and register /marketplaces route + sidebar item
+
+## Files changed
+ ui/desktop/src/App.tsx                             | 11 +++++++
+ .../marketplaces/MarketplacesView.test.tsx         | 38 ++++++++++++++++++++++
+ .../components/marketplaces/MarketplacesView.tsx   | 33 +++++++++++++++++++
+ ui/desktop/src/hooks/useNavigationItems.test.ts    | 17 ++++++++++
+ ui/desktop/src/hooks/useNavigationItems.ts         |  6 ++++
+ ui/desktop/src/utils/navigationUtils.test.ts       | 10 ++++++
+ ui/desktop/src/utils/navigationUtils.ts            |  4 +++
+ 7 files changed, 119 insertions(+)
+
+## Diff
+diff --git a/ui/desktop/src/App.tsx b/ui/desktop/src/App.tsx
+index 509f43c1e..c69346b00 100644
+--- a/ui/desktop/src/App.tsx
++++ b/ui/desktop/src/App.tsx
+@@ -38,20 +38,22 @@ import { ChatProvider, DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
+ import LauncherView from './components/LauncherView';
+ 
+ import 'react-toastify/dist/ReactToastify.css';
+ import { useConfig } from './components/ConfigContext';
+ import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
+ import { ThemeProvider } from './contexts/ThemeContext';
+ import { FeaturesProvider } from './contexts/FeaturesContext';
+ import PermissionSettingsView from './components/settings/permission/PermissionSetting';
+ 
+ import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
++import MarketplacesView from './components/marketplaces/MarketplacesView';
++import { MarketplaceProvider } from './components/marketplaces/MarketplaceContext';
+ import RecipesView from './components/recipes/RecipesView';
+ import SkillsView from './components/skills/SkillsView';
+ import AppsView from './components/apps/AppsView';
+ import StandaloneAppView from './components/apps/StandaloneAppView';
+ import { View, ViewOptions } from './utils/navigationUtils';
+ 
+ import { useNavigation } from './hooks/useNavigation';
+ import { errorMessage } from './utils/conversionUtils';
+ import { getInitialWorkingDir } from './utils/workingDir';
+ import { usePageViewTracking } from './hooks/useAnalytics';
+@@ -297,20 +299,28 @@ const ExtensionsRoute = () => {
+             break;
+           default:
+             navigate('/');
+         }
+       }}
+       viewOptions={viewOptions}
+     />
+   );
+ };
+ 
++const MarketplacesRoute = () => {
++  return (
++    <MarketplaceProvider>
++      <MarketplacesView />
++    </MarketplaceProvider>
++  );
++};
++
+ export function AppInner() {
+   const [fatalError, setFatalError] = useState<string | null>(null);
+ 
+   const nostrImportInFlight = useRef<string | null>(null);
+ 
+   const navigate = useNavigate();
+   const setView = useNavigation();
+ 
+   const [chat, setChat] = useState<ChatType>({
+     sessionId: '',
+@@ -648,20 +658,21 @@ export function AppInner() {
+               />
+               <Route path="settings" element={<SettingsRoute />} />
+               <Route
+                 path="extensions"
+                 element={
+                   <ChatProvider chat={chat} setChat={setChat} contextKey="extensions">
+                     <ExtensionsRoute />
+                   </ChatProvider>
+                 }
+               />
++              <Route path="marketplaces" element={<MarketplacesRoute />} />
+               <Route path="apps" element={<AppsView />} />
+               <Route path="sessions" element={<SessionsRoute />} />
+               <Route path="schedules" element={<SchedulesRoute />} />
+               <Route path="recipes" element={<RecipesRoute />} />
+               <Route path="skills" element={<SkillsRoute />} />
+               <Route path="permission" element={<PermissionRoute />} />
+             </Route>
+           </Routes>
+         </div>
+       </div>
+diff --git a/ui/desktop/src/components/marketplaces/MarketplacesView.test.tsx b/ui/desktop/src/components/marketplaces/MarketplacesView.test.tsx
+new file mode 100644
+index 000000000..047e14310
+--- /dev/null
++++ b/ui/desktop/src/components/marketplaces/MarketplacesView.test.tsx
+@@ -0,0 +1,38 @@
++import { describe, it, expect, vi } from 'vitest';
++import { render, screen } from '@testing-library/react';
++import { IntlTestWrapper } from '../../i18n/test-utils';
++import MarketplacesView from './MarketplacesView';
++import { useMarketplace, type MarketplaceContextValue } from './MarketplaceContext';
++
++vi.mock('./MarketplaceContext', () => ({ useMarketplace: vi.fn() }));
++vi.mock('../../toasts', () => ({ toastService: { error: vi.fn(), success: vi.fn() } }));
++
++function makeCtx(): MarketplaceContextValue {
++  return {
++    sources: [],
++    catalog: [],
++    browsedSource: null,
++    installedPlugins: [],
++    loading: { sources: false, browse: false, install: false, installed: false },
++    errors: { sources: null, browse: null, install: null, installed: null },
++    refreshSources: vi.fn().mockResolvedValue(undefined),
++    addSource: vi.fn().mockResolvedValue(undefined),
++    removeSource: vi.fn().mockResolvedValue(undefined),
++    browse: vi.fn().mockResolvedValue(undefined),
++    install: vi.fn().mockResolvedValue([]),
++    refreshInstalled: vi.fn().mockResolvedValue(undefined),
++    setPluginEnabled: vi.fn().mockResolvedValue(undefined),
++    updatePlugin: vi.fn().mockResolvedValue(undefined),
++  };
++}
++
++describe('MarketplacesView', () => {
++  it('renders the heading and all three sections', () => {
++    vi.mocked(useMarketplace).mockReturnValue(makeCtx());
++    render(<MarketplacesView />, { wrapper: IntlTestWrapper });
++    expect(screen.getByRole('heading', { level: 1, name: 'Marketplaces' })).toBeInTheDocument();
++    expect(screen.getByRole('heading', { level: 2, name: 'Sources' })).toBeInTheDocument();
++    expect(screen.getByRole('heading', { level: 2, name: 'Browse' })).toBeInTheDocument();
++    expect(screen.getByRole('heading', { level: 2, name: 'Installed' })).toBeInTheDocument();
++  });
++});
+diff --git a/ui/desktop/src/components/marketplaces/MarketplacesView.tsx b/ui/desktop/src/components/marketplaces/MarketplacesView.tsx
+new file mode 100644
+index 000000000..b92bd9dca
+--- /dev/null
++++ b/ui/desktop/src/components/marketplaces/MarketplacesView.tsx
+@@ -0,0 +1,33 @@
++import { MainPanelLayout } from '../Layout/MainPanelLayout';
++import SourcesSection from './SourcesSection';
++import BrowseSection from './BrowseSection';
++import InstalledSection from './InstalledSection';
++import { defineMessages, useIntl } from '../../i18n';
++
++const i18n = defineMessages({
++  heading: { id: 'marketplaces.view.heading', defaultMessage: 'Marketplaces' },
++  description: {
++    id: 'marketplaces.view.description',
++    defaultMessage:
++      'Manage plugin marketplaces, browse their catalogs, install plugins, and manage installed plugins.',
++  },
++});
++
++export default function MarketplacesView() {
++  const intl = useIntl();
++  return (
++    <MainPanelLayout>
++      <div className="flex flex-col min-w-0 flex-1 overflow-y-auto">
++        <div className="bg-background-primary px-8 pb-4 pt-16">
++          <h1 className="text-4xl font-light mb-1">{intl.formatMessage(i18n.heading)}</h1>
++          <p className="text-sm text-text-secondary mb-6">{intl.formatMessage(i18n.description)}</p>
++        </div>
++        <div className="px-8 pb-16 flex flex-col gap-10">
++          <SourcesSection />
++          <BrowseSection />
++          <InstalledSection />
++        </div>
++      </div>
++    </MainPanelLayout>
++  );
++}
+diff --git a/ui/desktop/src/hooks/useNavigationItems.test.ts b/ui/desktop/src/hooks/useNavigationItems.test.ts
+new file mode 100644
+index 000000000..440d6acef
+--- /dev/null
++++ b/ui/desktop/src/hooks/useNavigationItems.test.ts
+@@ -0,0 +1,17 @@
++import { describe, it, expect } from 'vitest';
++import { createIntl } from 'react-intl';
++import { NAV_ITEMS, getNavItemLabel } from './useNavigationItems';
++
++describe('marketplaces nav item', () => {
++  it('registers a Marketplaces item at /marketplaces', () => {
++    const item = NAV_ITEMS.find((i) => i.id === 'marketplaces');
++    expect(item).toBeDefined();
++    expect(item?.path).toBe('/marketplaces');
++  });
++
++  it('localizes the Marketplaces label', () => {
++    const intl = createIntl({ locale: 'en', messages: {} });
++    const item = NAV_ITEMS.find((i) => i.id === 'marketplaces')!;
++    expect(getNavItemLabel(item, intl)).toBe('Marketplaces');
++  });
++});
+diff --git a/ui/desktop/src/hooks/useNavigationItems.ts b/ui/desktop/src/hooks/useNavigationItems.ts
+index e6283baea..2dd041655 100644
+--- a/ui/desktop/src/hooks/useNavigationItems.ts
++++ b/ui/desktop/src/hooks/useNavigationItems.ts
+@@ -1,18 +1,19 @@
+ import {
+   AppWindow,
+   Clock,
+   FileText,
+   History,
+   MessageSquarePlus,
+   Puzzle,
+   Settings,
++  Store,
+   Zap,
+ } from 'lucide-react';
+ import type { LucideIcon } from 'lucide-react';
+ import { defineMessages, type IntlShape, type MessageDescriptor } from 'react-intl';
+ 
+ export interface NavItem {
+   id: string;
+   path: string;
+   label: string;
+   icon: LucideIcon;
+@@ -21,20 +22,21 @@ export interface NavItem {
+ }
+ 
+ /** Top-level nav items (excluding Settings which is pinned to the bottom). */
+ export const NAV_ITEMS: NavItem[] = [
+   { id: 'home', path: '/', label: 'New Chat', icon: MessageSquarePlus },
+   { id: 'recipes', path: '/recipes', label: 'Recipes', icon: FileText },
+   { id: 'skills', path: '/skills', label: 'Skills', icon: Zap },
+   { id: 'apps', path: '/apps', label: 'Apps', icon: AppWindow },
+   { id: 'scheduler', path: '/schedules', label: 'Scheduler', icon: Clock },
+   { id: 'extensions', path: '/extensions', label: 'Extensions', icon: Puzzle },
++  { id: 'marketplaces', path: '/marketplaces', label: 'Marketplaces', icon: Store },
+   { id: 'sessions', path: '/sessions', label: 'Session History', icon: History },
+ ];
+ 
+ /** Settings is rendered separately, pinned to the bottom of the sidebar. */
+ export const SETTINGS_NAV_ITEM: NavItem = {
+   id: 'settings',
+   path: '/settings',
+   label: 'Settings',
+   icon: Settings,
+ };
+@@ -59,20 +61,24 @@ const navItemMessages = defineMessages({
+     defaultMessage: 'Apps',
+   },
+   scheduler: {
+     id: 'navigation.itemScheduler',
+     defaultMessage: 'Scheduler',
+   },
+   extensions: {
+     id: 'navigation.itemExtensions',
+     defaultMessage: 'Extensions',
+   },
++  marketplaces: {
++    id: 'navigation.itemMarketplaces',
++    defaultMessage: 'Marketplaces',
++  },
+   sessions: {
+     id: 'navigation.itemSessions',
+     defaultMessage: 'Session History',
+   },
+   settings: {
+     id: 'navigation.itemSettings',
+     defaultMessage: 'Settings',
+   },
+ });
+ 
+diff --git a/ui/desktop/src/utils/navigationUtils.test.ts b/ui/desktop/src/utils/navigationUtils.test.ts
+new file mode 100644
+index 000000000..dfad1e2a0
+--- /dev/null
++++ b/ui/desktop/src/utils/navigationUtils.test.ts
+@@ -0,0 +1,10 @@
++import { describe, it, expect, vi } from 'vitest';
++import { createNavigationHandler } from './navigationUtils';
++
++describe('createNavigationHandler', () => {
++  it('navigates to /marketplaces for the marketplaces view', () => {
++    const navigate = vi.fn();
++    createNavigationHandler(navigate)('marketplaces');
++    expect(navigate).toHaveBeenCalledWith('/marketplaces', { state: undefined });
++  });
++});
+diff --git a/ui/desktop/src/utils/navigationUtils.ts b/ui/desktop/src/utils/navigationUtils.ts
+index cf11fe354..5299b14a5 100644
+--- a/ui/desktop/src/utils/navigationUtils.ts
++++ b/ui/desktop/src/utils/navigationUtils.ts
+@@ -1,19 +1,20 @@
+ import { NavigateFunction } from 'react-router-dom';
+ import type { Recipe } from '../recipe';
+ import { UserInput } from '../types/message';
+ 
+ export type View =
+   | 'chat'
+   | 'pair'
+   | 'settings'
+   | 'extensions'
++  | 'marketplaces'
+   | 'moreModels'
+   | 'configureProviders'
+   | 'configPage'
+   | 'ConfigureProviders'
+   | 'settingsV2'
+   | 'sessions'
+   | 'schedules'
+   | 'loading'
+   | 'recipes'
+   | 'skills'
+@@ -68,15 +69,18 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
+         break;
+       case 'permission':
+         navigate('/permission', { state: options });
+         break;
+       case 'ConfigureProviders':
+         navigate('/configure-providers', { state: options });
+         break;
+       case 'extensions':
+         navigate('/extensions', { state: options });
+         break;
++      case 'marketplaces':
++        navigate('/marketplaces', { state: options });
++        break;
+       default:
+         navigate('/', { state: options });
+     }
+   };
+ };

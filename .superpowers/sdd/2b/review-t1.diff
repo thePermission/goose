@@ -1,0 +1,379 @@
+# Review package: cbd6dfa64..124a7dedd
+
+## Commits
+124a7dedd feat(marketplaces): add useMarketplace hook and context
+
+## Files changed
+ .../marketplaces/MarketplaceContext.test.tsx       | 114 ++++++++++
+ .../components/marketplaces/MarketplaceContext.tsx | 232 +++++++++++++++++++++
+ .../src/components/marketplaces/errorMessage.ts    |   3 +
+ 3 files changed, 349 insertions(+)
+
+## Diff
+diff --git a/ui/desktop/src/components/marketplaces/MarketplaceContext.test.tsx b/ui/desktop/src/components/marketplaces/MarketplaceContext.test.tsx
+new file mode 100644
+index 000000000..32160505d
+--- /dev/null
++++ b/ui/desktop/src/components/marketplaces/MarketplaceContext.test.tsx
+@@ -0,0 +1,114 @@
++import React from 'react';
++import { beforeEach, describe, expect, it, vi } from 'vitest';
++import { renderHook, act, waitFor } from '@testing-library/react';
++import { MarketplaceProvider, useMarketplace } from './MarketplaceContext';
++import * as marketplaceAcp from '../../acp/marketplace';
++
++vi.mock('../../acp/marketplace', () => ({
++  listMarketplaces: vi.fn(),
++  addMarketplace: vi.fn(),
++  removeMarketplace: vi.fn(),
++  browseMarketplace: vi.fn(),
++  installMarketplacePlugin: vi.fn(),
++  listInstalledPlugins: vi.fn(),
++  setPluginEnabled: vi.fn(),
++  updatePlugin: vi.fn(),
++}));
++
++const wrapper = ({ children }: { children: React.ReactNode }) => (
++  <MarketplaceProvider>{children}</MarketplaceProvider>
++);
++
++beforeEach(() => {
++  vi.clearAllMocks();
++  vi.mocked(marketplaceAcp.listMarketplaces).mockResolvedValue([]);
++  vi.mocked(marketplaceAcp.listInstalledPlugins).mockResolvedValue([]);
++  vi.mocked(marketplaceAcp.addMarketplace).mockResolvedValue(undefined);
++  vi.mocked(marketplaceAcp.removeMarketplace).mockResolvedValue(undefined);
++  vi.mocked(marketplaceAcp.setPluginEnabled).mockResolvedValue(undefined);
++});
++
++describe('useMarketplace', () => {
++  it('loads sources and installed plugins on mount', async () => {
++    vi.mocked(marketplaceAcp.listMarketplaces).mockResolvedValue([
++      { name: 'core', kind: 'claude', location: 'https://ex/repo.git', enabled: true },
++    ]);
++    vi.mocked(marketplaceAcp.listInstalledPlugins).mockResolvedValue([
++      { name: 'demo', version: '1.0.0', source: 'core', enabled: true, autoUpdate: false, updatable: true },
++    ]);
++    const { result } = renderHook(() => useMarketplace(), { wrapper });
++    await waitFor(() => expect(result.current.sources).toHaveLength(1));
++    expect(result.current.sources[0].name).toBe('core');
++    expect(result.current.installedPlugins[0].name).toBe('demo');
++  });
++
++  it('addSource calls the wrapper then refreshes sources', async () => {
++    const { result } = renderHook(() => useMarketplace(), { wrapper });
++    await waitFor(() => expect(marketplaceAcp.listMarketplaces).toHaveBeenCalledTimes(1));
++    await act(async () => {
++      await result.current.addSource('m', 'codex', './repo');
++    });
++    expect(marketplaceAcp.addMarketplace).toHaveBeenCalledWith('m', 'codex', './repo');
++    expect(marketplaceAcp.listMarketplaces).toHaveBeenCalledTimes(2);
++  });
++
++  it('browse populates catalog and browsedSource on success', async () => {
++    vi.mocked(marketplaceAcp.browseMarketplace).mockResolvedValue([
++      { name: 'a', description: 'x', installable: true, sourceKind: 'git' },
++    ]);
++    const { result } = renderHook(() => useMarketplace(), { wrapper });
++    await act(async () => {
++      await result.current.browse('core');
++    });
++    expect(result.current.catalog).toHaveLength(1);
++    expect(result.current.browsedSource).toBe('core');
++    expect(result.current.errors.browse).toBeNull();
++  });
++
++  it('browse failure records an error and clears the catalog', async () => {
++    vi.mocked(marketplaceAcp.browseMarketplace).mockRejectedValue(new Error('offline'));
++    const { result } = renderHook(() => useMarketplace(), { wrapper });
++    await act(async () => {
++      await result.current.browse('core');
++    });
++    expect(result.current.catalog).toHaveLength(0);
++    expect(result.current.errors.browse).toBe('offline');
++  });
++
++  it('install collects per-plugin outcomes, keeps going after a failure, and refreshes installed', async () => {
++    vi.mocked(marketplaceAcp.installMarketplacePlugin).mockImplementation(async (_m, plugin) => {
++      if (plugin === 'bad') throw new Error('boom');
++      return {
++        name: plugin, version: '1.0.0', format: 'claude', source: 'core',
++        skills: [], hasHooks: false, hasMcp: false,
++      };
++    });
++    const { result } = renderHook(() => useMarketplace(), { wrapper });
++    await waitFor(() => expect(marketplaceAcp.listInstalledPlugins).toHaveBeenCalledTimes(1));
++    let outcomes: Awaited<ReturnType<typeof result.current.install>> = [];
++    await act(async () => {
++      outcomes = await result.current.install('core', ['good', 'bad']);
++    });
++    expect(outcomes).toHaveLength(2);
++    expect(outcomes[0]).toMatchObject({ plugin: 'good', ok: true });
++    expect(outcomes[1]).toMatchObject({ plugin: 'bad', ok: false, error: 'boom' });
++    expect(result.current.errors.install).toContain('bad: boom');
++    expect(marketplaceAcp.listInstalledPlugins).toHaveBeenCalledTimes(2);
++  });
++
++  it('setPluginEnabled and updatePlugin call the wrapper then refresh installed', async () => {
++    vi.mocked(marketplaceAcp.updatePlugin).mockResolvedValue({
++      name: 'demo', version: '2.0.0', format: 'claude', source: 'core',
++      skills: [], hasHooks: false, hasMcp: false,
++    });
++    const { result } = renderHook(() => useMarketplace(), { wrapper });
++    await waitFor(() => expect(marketplaceAcp.listInstalledPlugins).toHaveBeenCalledTimes(1));
++    await act(async () => {
++      await result.current.setPluginEnabled('demo', false);
++      await result.current.updatePlugin('demo');
++    });
++    expect(marketplaceAcp.setPluginEnabled).toHaveBeenCalledWith('demo', false);
++    expect(marketplaceAcp.updatePlugin).toHaveBeenCalledWith('demo');
++    expect(marketplaceAcp.listInstalledPlugins).toHaveBeenCalledTimes(3);
++  });
++});
+diff --git a/ui/desktop/src/components/marketplaces/MarketplaceContext.tsx b/ui/desktop/src/components/marketplaces/MarketplaceContext.tsx
+new file mode 100644
+index 000000000..51209e06f
+--- /dev/null
++++ b/ui/desktop/src/components/marketplaces/MarketplaceContext.tsx
+@@ -0,0 +1,232 @@
++import React, {
++  createContext,
++  useCallback,
++  useContext,
++  useEffect,
++  useMemo,
++  useState,
++} from 'react';
++import type {
++  MarketplaceSourceInfo,
++  CatalogPluginInfo,
++  InstalledPluginInfo,
++  InstalledPluginResult_unstable,
++} from '@aaif/goose-sdk';
++import {
++  listMarketplaces,
++  addMarketplace,
++  removeMarketplace,
++  browseMarketplace,
++  installMarketplacePlugin,
++  listInstalledPlugins,
++  setPluginEnabled as acpSetPluginEnabled,
++  updatePlugin as acpUpdatePlugin,
++} from '../../acp/marketplace';
++import { errorMessage } from './errorMessage';
++
++export type InstallOutcome =
++  | { plugin: string; ok: true; result: InstalledPluginResult_unstable }
++  | { plugin: string; ok: false; error: string };
++
++export interface MarketplaceLoading {
++  sources: boolean;
++  browse: boolean;
++  install: boolean;
++  installed: boolean;
++}
++
++export interface MarketplaceErrors {
++  sources: string | null;
++  browse: string | null;
++  install: string | null;
++  installed: string | null;
++}
++
++export interface MarketplaceContextValue {
++  sources: MarketplaceSourceInfo[];
++  catalog: CatalogPluginInfo[];
++  browsedSource: string | null;
++  installedPlugins: InstalledPluginInfo[];
++  loading: MarketplaceLoading;
++  errors: MarketplaceErrors;
++  refreshSources: () => Promise<void>;
++  addSource: (name: string, kind: string, location: string) => Promise<void>;
++  removeSource: (name: string) => Promise<void>;
++  browse: (name: string) => Promise<void>;
++  install: (marketplace: string, plugins: string[], autoUpdate?: boolean) => Promise<InstallOutcome[]>;
++  refreshInstalled: () => Promise<void>;
++  setPluginEnabled: (name: string, enabled: boolean) => Promise<void>;
++  updatePlugin: (name: string) => Promise<void>;
++}
++
++const MarketplaceContext = createContext<MarketplaceContextValue | undefined>(undefined);
++
++export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
++  const [sources, setSources] = useState<MarketplaceSourceInfo[]>([]);
++  const [catalog, setCatalog] = useState<CatalogPluginInfo[]>([]);
++  const [browsedSource, setBrowsedSource] = useState<string | null>(null);
++  const [installedPlugins, setInstalledPlugins] = useState<InstalledPluginInfo[]>([]);
++  const [loading, setLoading] = useState<MarketplaceLoading>({
++    sources: false,
++    browse: false,
++    install: false,
++    installed: false,
++  });
++  const [errors, setErrors] = useState<MarketplaceErrors>({
++    sources: null,
++    browse: null,
++    install: null,
++    installed: null,
++  });
++
++  const refreshSources = useCallback(async () => {
++    setLoading((p) => ({ ...p, sources: true }));
++    setErrors((p) => ({ ...p, sources: null }));
++    try {
++      setSources(await listMarketplaces());
++    } catch (e) {
++      setErrors((p) => ({ ...p, sources: errorMessage(e) }));
++    } finally {
++      setLoading((p) => ({ ...p, sources: false }));
++    }
++  }, []);
++
++  const refreshInstalled = useCallback(async () => {
++    setLoading((p) => ({ ...p, installed: true }));
++    setErrors((p) => ({ ...p, installed: null }));
++    try {
++      setInstalledPlugins(await listInstalledPlugins());
++    } catch (e) {
++      setErrors((p) => ({ ...p, installed: errorMessage(e) }));
++    } finally {
++      setLoading((p) => ({ ...p, installed: false }));
++    }
++  }, []);
++
++  const addSource = useCallback(
++    async (name: string, kind: string, location: string) => {
++      await addMarketplace(name, kind, location);
++      await refreshSources();
++    },
++    [refreshSources]
++  );
++
++  const removeSource = useCallback(
++    async (name: string) => {
++      await removeMarketplace(name);
++      await refreshSources();
++    },
++    [refreshSources]
++  );
++
++  const browse = useCallback(async (name: string) => {
++    setLoading((p) => ({ ...p, browse: true }));
++    setErrors((p) => ({ ...p, browse: null }));
++    try {
++      const plugins = await browseMarketplace(name);
++      setCatalog(plugins);
++      setBrowsedSource(name);
++    } catch (e) {
++      setCatalog([]);
++      setBrowsedSource(name);
++      setErrors((p) => ({ ...p, browse: errorMessage(e) }));
++    } finally {
++      setLoading((p) => ({ ...p, browse: false }));
++    }
++  }, []);
++
++  const install = useCallback(
++    async (marketplace: string, plugins: string[], autoUpdate = false) => {
++      setLoading((p) => ({ ...p, install: true }));
++      setErrors((p) => ({ ...p, install: null }));
++      const outcomes: InstallOutcome[] = [];
++      for (const plugin of plugins) {
++        try {
++          const result = await installMarketplacePlugin(marketplace, plugin, autoUpdate);
++          outcomes.push({ plugin, ok: true, result });
++        } catch (e) {
++          outcomes.push({ plugin, ok: false, error: errorMessage(e) });
++        }
++      }
++      await refreshInstalled();
++      const failed = outcomes.filter(
++        (o): o is Extract<InstallOutcome, { ok: false }> => !o.ok
++      );
++      if (failed.length > 0) {
++        setErrors((p) => ({
++          ...p,
++          install: failed.map((o) => `${o.plugin}: ${o.error}`).join('; '),
++        }));
++      }
++      setLoading((p) => ({ ...p, install: false }));
++      return outcomes;
++    },
++    [refreshInstalled]
++  );
++
++  const setPluginEnabled = useCallback(
++    async (name: string, enabled: boolean) => {
++      await acpSetPluginEnabled(name, enabled);
++      await refreshInstalled();
++    },
++    [refreshInstalled]
++  );
++
++  const updatePlugin = useCallback(
++    async (name: string) => {
++      await acpUpdatePlugin(name);
++      await refreshInstalled();
++    },
++    [refreshInstalled]
++  );
++
++  useEffect(() => {
++    void refreshSources();
++    void refreshInstalled();
++  }, [refreshSources, refreshInstalled]);
++
++  const value = useMemo<MarketplaceContextValue>(
++    () => ({
++      sources,
++      catalog,
++      browsedSource,
++      installedPlugins,
++      loading,
++      errors,
++      refreshSources,
++      addSource,
++      removeSource,
++      browse,
++      install,
++      refreshInstalled,
++      setPluginEnabled,
++      updatePlugin,
++    }),
++    [
++      sources,
++      catalog,
++      browsedSource,
++      installedPlugins,
++      loading,
++      errors,
++      refreshSources,
++      addSource,
++      removeSource,
++      browse,
++      install,
++      refreshInstalled,
++      setPluginEnabled,
++      updatePlugin,
++    ]
++  );
++
++  return <MarketplaceContext.Provider value={value}>{children}</MarketplaceContext.Provider>;
++};
++
++export function useMarketplace(): MarketplaceContextValue {
++  const ctx = useContext(MarketplaceContext);
++  if (ctx === undefined) {
++    throw new Error('useMarketplace must be used within a MarketplaceProvider');
++  }
++  return ctx;
++}
+diff --git a/ui/desktop/src/components/marketplaces/errorMessage.ts b/ui/desktop/src/components/marketplaces/errorMessage.ts
+new file mode 100644
+index 000000000..83402b45f
+--- /dev/null
++++ b/ui/desktop/src/components/marketplaces/errorMessage.ts
+@@ -0,0 +1,3 @@
++export function errorMessage(e: unknown): string {
++  return e instanceof Error ? e.message : String(e);
++}
