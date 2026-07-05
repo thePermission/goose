@@ -104,7 +104,7 @@ jobs:
         working-directory: ui/desktop
         env:
           ELECTRON_ARCH: x64
-        run: pnpm run make -- --arch=x64 --targets @electron-forge/maker-deb
+        run: pnpm run make --arch=x64 --targets @electron-forge/maker-deb
       - name: Collect artifacts
         run: |
           mkdir -p dist
@@ -133,7 +133,7 @@ Run (this is the real test — the same commands the job runs):
 source bin/activate-hermit   # local convenience for cargo/pnpm; CI uses setup actions
 cargo build --release -p goose-cli --bin proose
 mkdir -p ui/desktop/src/bin && cp -p target/release/proose ui/desktop/src/bin/proose
-cd ui/desktop && ELECTRON_ARCH=x64 pnpm run make -- --arch=x64 --targets @electron-forge/maker-deb
+cd ui/desktop && ELECTRON_ARCH=x64 pnpm run make --arch=x64 --targets @electron-forge/maker-deb
 deb=$(find out/make -name '*.deb' | head -1); ls -1 "$deb" && dpkg-deb -f "$deb" Package
 ```
 Expected: a `proose_1.41.0_amd64.deb` exists and `Package: proose`. (Confirms the job's build commands + output path are correct.)
@@ -193,7 +193,7 @@ Append under `jobs:` in `.github/workflows/proose-release.yml`:
         working-directory: ui/desktop
         env:
           ELECTRON_ARCH: x64
-        run: pnpm run make -- --arch=x64 --targets @electron-forge/maker-rpm
+        run: pnpm run make --arch=x64 --targets @electron-forge/maker-rpm
       - name: Collect artifacts
         run: |
           mkdir -p dist
@@ -221,7 +221,7 @@ command -v docker && docker run --rm -v "$PWD":/w -w /w almalinux:9 bash -euxc '
   pnpm --dir ui install --frozen-lockfile
   cargo build --release -p goose-cli --bin proose
   mkdir -p ui/desktop/src/bin && cp -p target/release/proose ui/desktop/src/bin/proose
-  cd ui/desktop && ELECTRON_ARCH=x64 pnpm run make -- --arch=x64 --targets @electron-forge/maker-rpm
+  cd ui/desktop && ELECTRON_ARCH=x64 pnpm run make --arch=x64 --targets @electron-forge/maker-rpm
   rpm=$(find out/make -name "*.rpm" | head -1); ls -1 "$rpm" && rpm -qp --qf "%{NAME}\n" "$rpm"
 ' 2>&1 | tail -30
 ```
@@ -282,7 +282,7 @@ Append under `jobs:`:
         working-directory: ui/desktop
         env:
           ELECTRON_ARCH: x64
-        run: pnpm run make -- --arch=x64 --targets @electron-forge/maker-zip
+        run: pnpm run make --arch=x64 --targets @electron-forge/maker-zip
       - name: Collect artifacts
         shell: pwsh
         run: |
