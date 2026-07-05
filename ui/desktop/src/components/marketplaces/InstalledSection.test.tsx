@@ -110,6 +110,7 @@ describe('InstalledSection', () => {
     );
     renderWithIntl(<InstalledSection />);
     expect(screen.getByRole('alert')).toHaveTextContent('acp unreachable');
+    expect(screen.queryByText('No plugins installed yet.')).not.toBeInTheDocument();
   });
 
   // Additional coverage beyond the brief: Task 1 review flagged that setPluginEnabled/updatePlugin

@@ -79,7 +79,7 @@ export default function SourcesSection() {
         </p>
       )}
 
-      {sources.length === 0 ? (
+      {sources.length === 0 && errors.sources === null ? (
         <p className="text-sm text-text-secondary mb-3">{intl.formatMessage(i18n.empty)}</p>
       ) : (
         <ul className="flex flex-col gap-2 mb-4">

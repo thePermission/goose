@@ -106,7 +106,7 @@ export default function InstalledSection() {
       )}
       {loading.installed && installedPlugins.length === 0 ? (
         <p className="text-sm text-text-secondary">{intl.formatMessage(i18n.loading)}</p>
-      ) : installedPlugins.length === 0 ? (
+      ) : installedPlugins.length === 0 && errors.installed === null ? (
         <p className="text-sm text-text-secondary">{intl.formatMessage(i18n.empty)}</p>
       ) : (
         <ul className="flex flex-col gap-2">

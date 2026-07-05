@@ -52,6 +52,7 @@ describe('SourcesSection', () => {
     );
     renderWithIntl(<SourcesSection />);
     expect(screen.getByRole('alert')).toHaveTextContent('goosed down');
+    expect(screen.queryByText('No sources configured yet.')).not.toBeInTheDocument();
   });
 
   it('rejects an add with empty name or location and does not call addSource', () => {
