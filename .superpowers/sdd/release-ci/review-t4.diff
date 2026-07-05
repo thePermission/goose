@@ -1,0 +1,54 @@
+# Review package: dd820e633..4f671bcd8
+
+## Commits
+4f671bcd8 ci(proose): release job — publish 6 assets to GitHub Release
+
+## Files changed
+ .github/workflows/proose-release.yml | 29 +++++++++++++++++++++++++++++
+ 1 file changed, 29 insertions(+)
+
+## Diff
+diff --git a/.github/workflows/proose-release.yml b/.github/workflows/proose-release.yml
+index faa61d0ae..bfe47b414 100644
+--- a/.github/workflows/proose-release.yml
++++ b/.github/workflows/proose-release.yml
+@@ -130,10 +130,39 @@ jobs:
+       - name: Collect artifacts
+         shell: pwsh
+         run: |
+           New-Item -ItemType Directory -Force dist | Out-Null
+           Get-ChildItem -Recurse ui/desktop/out/make -Filter *.zip | Copy-Item -Destination dist/
+           Copy-Item target/x86_64-pc-windows-msvc/release/proose.exe dist/proose-windows-x86_64.exe
+       - uses: actions/upload-artifact@v4
+         with:
+           name: proose-windows
+           path: dist/*
++  release:
++    needs: [build-ubuntu-deb, build-almalinux-rpm, build-windows-zip]
++    runs-on: ubuntu-latest
++    permissions:
++      contents: write
++    steps:
++      - name: Download all build artifacts
++        uses: actions/download-artifact@v4
++        with:
++          path: dist
++      - name: Flatten
++        run: |
++          mkdir -p release-assets
++          find dist -type f -exec cp {} release-assets/ \;
++          ls -1 release-assets
++      - name: Compute tag
++        run: |
++          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
++            echo "TAG=proose-v${{ github.event.inputs.version }}" >> "$GITHUB_ENV"
++          else
++            echo "TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
++          fi
++      - name: Publish GitHub Release
++        uses: softprops/action-gh-release@v2
++        with:
++          tag_name: ${{ env.TAG }}
++          files: release-assets/*
++          prerelease: false
++          fail_on_unmatched_files: true

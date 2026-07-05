@@ -1,0 +1,84 @@
+# Review package: c5f85b670..14618463b
+
+## Commits
+14618463b ci(proose): release workflow skeleton + Ubuntu deb job
+
+## Files changed
+ .github/workflows/proose-release.yml | 52 ++++++++++++++++++++++++++++++++++++
+ scripts/proose-set-version.sh        |  9 +++++++
+ 2 files changed, 61 insertions(+)
+
+## Diff
+diff --git a/.github/workflows/proose-release.yml b/.github/workflows/proose-release.yml
+new file mode 100644
+index 000000000..a6d61bc54
+--- /dev/null
++++ b/.github/workflows/proose-release.yml
+@@ -0,0 +1,52 @@
++name: Proose Release
++on:
++  push:
++    tags: ['proose-v*']
++  workflow_dispatch:
++    inputs:
++      version:
++        description: 'Version without prefix, e.g. 1.41.0'
++        required: true
++        type: string
++permissions:
++  contents: write
++jobs:
++  build-ubuntu-deb:
++    runs-on: ubuntu-22.04
++    steps:
++      - uses: actions/checkout@v4
++      - uses: dtolnay/rust-toolchain@stable
++      - uses: actions/setup-node@v4
++        with:
++          node-version: '24'
++      - uses: pnpm/action-setup@v4
++        with:
++          version: '10.30.0'
++      - name: Derive + stamp version
++        run: |
++          VERSION="${{ github.event.inputs.version || github.ref_name }}"
++          VERSION="${VERSION#proose-v}"
++          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
++          bash scripts/proose-set-version.sh "$VERSION"
++      - name: Install deps
++        run: pnpm --dir ui install --frozen-lockfile
++      - name: Build proose CLI binary
++        run: cargo build --release -p goose-cli --bin proose
++      - name: Stage binary for the desktop bundle
++        run: |
++          mkdir -p ui/desktop/src/bin
++          cp -p target/release/proose ui/desktop/src/bin/proose
++      - name: Make .deb
++        working-directory: ui/desktop
++        env:
++          ELECTRON_ARCH: x64
++        run: pnpm run make --arch=x64 --targets @electron-forge/maker-deb
++      - name: Collect artifacts
++        run: |
++          mkdir -p dist
++          find ui/desktop/out/make -name '*.deb' -exec cp {} dist/ \;
++          cp target/release/proose dist/proose-linux-x86_64-ubuntu
++      - uses: actions/upload-artifact@v4
++        with:
++          name: proose-ubuntu
++          path: dist/*
+diff --git a/scripts/proose-set-version.sh b/scripts/proose-set-version.sh
+new file mode 100755
+index 000000000..89037e83e
+--- /dev/null
++++ b/scripts/proose-set-version.sh
+@@ -0,0 +1,9 @@
++#!/usr/bin/env bash
++set -euo pipefail
++ver="${1:?usage: proose-set-version.sh <version>}"
++node -e 'const fs=require("fs");const p="ui/desktop/package.json";const j=JSON.parse(fs.readFileSync(p,"utf8"));j.version=process.argv[1];fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n")' "$ver"
++# Root Cargo.toml: only the [workspace.package] `version = "..."` line is anchored at col 0.
++perl -0pi -e 's/^version = "[^"]*"/version = "'"$ver"'"/m' Cargo.toml
++echo "stamped version $ver into ui/desktop/package.json + Cargo.toml"
++grep -m1 '"version"' ui/desktop/package.json
++grep -m1 '^version = ' Cargo.toml
