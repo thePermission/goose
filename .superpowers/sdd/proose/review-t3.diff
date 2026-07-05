@@ -1,0 +1,238 @@
+# Review package: b89093b61..f12f3f59c
+
+## Commits
+f12f3f59c feat(proose): rebrand desktop app identity (name, proose:// protocol, packaging)
+
+## Files changed
+ ui/desktop/forge.config.ts | 16 ++++++++--------
+ ui/desktop/package.json    |  4 ++--
+ ui/desktop/src/main.ts     | 14 +++++++-------
+ 3 files changed, 17 insertions(+), 17 deletions(-)
+
+## Diff
+diff --git a/ui/desktop/forge.config.ts b/ui/desktop/forge.config.ts
+index 6b88b9828..0de34fa7c 100644
+--- a/ui/desktop/forge.config.ts
++++ b/ui/desktop/forge.config.ts
+@@ -12,22 +12,22 @@ let cfg = {
+   win32: {
+     icon: 'src/images/icon.ico',
+     certificateFile: process.env.WINDOWS_CERTIFICATE_FILE,
+     signingRole: process.env.WINDOW_SIGNING_ROLE,
+     rfc3161TimeStampServer: 'http://timestamp.digicert.com',
+     signWithParams: '/fd sha256 /tr http://timestamp.digicert.com /td sha256',
+   },
+   // Protocol registration
+   protocols: [
+     {
+-      name: 'GooseProtocol',
+-      schemes: ['goose'],
++      name: 'ProoseProtocol',
++      schemes: ['proose'],
+     },
+   ],
+   // macOS Info.plist extensions for drag-and-drop support
+   extendInfo: {
+     // Document types for drag-and-drop support onto dock icon
+     CFBundleDocumentTypes: [
+       {
+         CFBundleTypeName: 'Folders',
+         CFBundleTypeRole: 'Viewer',
+         LSHandlerRank: 'Alternate',
+@@ -80,63 +80,63 @@ module.exports = {
+       config: {
+         arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
+         options: {
+           icon: 'src/images/icon.ico',
+         },
+       },
+     },
+     {
+       name: '@electron-forge/maker-deb',
+       config: {
+-        name: 'Goose',
+-        bin: 'Goose',
++        name: 'Proose',
++        bin: 'Proose',
+         maintainer: 'AAIF (Agentic AI Foundation)',
+         homepage: 'https://goose-docs.ai/',
+         categories: ['Development'],
+         desktopTemplate: './forge.deb.desktop',
+         options: {
+           icon: 'src/images/icon.png',
+           prefix: '/opt',
+           ...(isLinuxVulkanBuild ? { depends: ['libvulkan1'] } : {}),
+         },
+       },
+     },
+     {
+       name: '@electron-forge/maker-rpm',
+       config: {
+-        name: 'Goose',
+-        bin: 'Goose',
++        name: 'Proose',
++        bin: 'Proose',
+         maintainer: 'AAIF (Agentic AI Foundation)',
+         homepage: 'https://goose-docs.ai/',
+         categories: ['Development'],
+         desktopTemplate: './forge.rpm.desktop',
+         options: {
+           icon: 'src/images/icon.png',
+           prefix: '/opt',
+           ...(isLinuxVulkanBuild ? { requires: ['vulkan-loader'] } : {}),
+         },
+       },
+     },
+     {
+       name: '@electron-forge/maker-flatpak',
+       config: {
+         options: {
+-          id: 'io.github.block.Goose', // NOTE: kept for backwards compat with existing installs
++          id: 'io.github.thepermission.Proose',
+           categories: ['Development'],
+           icon: {
+             scalable: 'src/images/icon.svg',
+             '512x512': 'src/images/icon-512.png',
+           },
+           homepage: 'https://goose-docs.ai/',
+           runtimeVersion: '25.08',
+           baseVersion: '25.08',
+-          bin: 'Goose',
++          bin: 'Proose',
+           modules: [
+             {
+               name: 'libbz2-shim',
+               buildsystem: 'simple',
+               'build-commands': [
+                 // Create the lib directory in the app bundle
+                 'mkdir -p /app/lib',
+                 // Point to the actual library in the 25.08 runtime
+                 // We use a wildcard to handle multi-arch paths (x86_64-linux-gnu, etc)
+                 'ln -s $(find /usr/lib -name "libbz2.so.1" | head -n 1) /app/lib/libbz2.so.1.0',
+diff --git a/ui/desktop/package.json b/ui/desktop/package.json
+index a0bb7693e..182e903c2 100644
+--- a/ui/desktop/package.json
++++ b/ui/desktop/package.json
+@@ -1,13 +1,13 @@
+ {
+-  "name": "goose-app",
+-  "productName": "Goose",
++  "name": "proose-app",
++  "productName": "Proose",
+   "version": "1.41.0",
+   "description": "Goose App",
+   "engines": {
+     "node": "^24.10.0",
+     "pnpm": ">=10.30.0"
+   },
+   "main": ".vite/build/main.js",
+   "scripts": {
+     "postinstall": "pnpm run build-goose-sdk",
+     "typecheck": "tsc --noEmit",
+diff --git a/ui/desktop/src/main.ts b/ui/desktop/src/main.ts
+index dd938be40..e62d37279 100644
+--- a/ui/desktop/src/main.ts
++++ b/ui/desktop/src/main.ts
+@@ -401,51 +401,51 @@ app.whenReady().then(() => {
+ if (process.env.ENABLE_PLAYWRIGHT) {
+   const debugPort = process.env.PLAYWRIGHT_DEBUG_PORT || '9222';
+   console.log(`[Main] Enabling Playwright remote debugging on port ${debugPort}`);
+   app.commandLine.appendSwitch('remote-debugging-port', debugPort);
+ }
+ 
+ // In development mode, force registration as the default protocol client
+ // In production, register normally
+ if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+   // Development mode - force registration
+-  console.log('[Main] Development mode: Forcing protocol registration for goose://');
+-  app.setAsDefaultProtocolClient('goose');
++  console.log('[Main] Development mode: Forcing protocol registration for proose://');
++  app.setAsDefaultProtocolClient('proose');
+ 
+   if (process.platform === 'darwin') {
+     try {
+       // Reset the default handler to ensure dev version takes precedence
+-      spawn('open', ['-a', process.execPath, '--args', '--reset-protocol-handler', 'goose'], {
++      spawn('open', ['-a', process.execPath, '--args', '--reset-protocol-handler', 'proose'], {
+         detached: true,
+         stdio: 'ignore',
+       });
+     } catch {
+       console.warn('[Main] Could not reset protocol handler');
+     }
+   }
+ } else {
+   // Production mode - normal registration
+-  app.setAsDefaultProtocolClient('goose');
++  app.setAsDefaultProtocolClient('proose');
+ }
+ 
+ // Apply single instance lock on Windows and Linux where it's needed for deep links
+ // macOS uses the 'open-url' event instead
+ let gotTheLock = true;
+ let openUrlHandledLaunch = false;
+ if (process.platform !== 'darwin') {
+   gotTheLock = app.requestSingleInstanceLock();
+ 
+   if (!gotTheLock) {
+     app.quit();
+   } else {
+     app.on('second-instance', (_event, commandLine) => {
+-      const protocolUrl = commandLine.find((arg) => arg.startsWith('goose://'));
++      const protocolUrl = commandLine.find((arg) => arg.startsWith('proose://'));
+       if (protocolUrl) {
+         const parsedUrl = new URL(protocolUrl);
+         // If it's a bot/recipe URL, handle it directly by creating a new window
+         if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
+           app.whenReady().then(async () => {
+             const recentDirs = loadRecentDirs();
+             const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+ 
+             const deeplinkData = parseRecipeDeeplink(protocolUrl);
+             const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+@@ -494,21 +494,21 @@ if (process.platform !== 'darwin') {
+         const mainWindow = existingWindows[0];
+         if (mainWindow.isMinimized()) {
+           mainWindow.restore();
+         }
+         mainWindow.focus();
+       }
+     });
+   }
+ 
+   // Handle protocol URLs on Windows and Linux startup
+-  const protocolUrl = process.argv.find((arg) => arg.startsWith('goose://'));
++  const protocolUrl = process.argv.find((arg) => arg.startsWith('proose://'));
+   if (protocolUrl) {
+     app.whenReady().then(async () => {
+       let parsedUrl: URL;
+       try {
+         parsedUrl = new URL(protocolUrl);
+       } catch (error) {
+         log.warn('[Main] Ignoring invalid startup protocol URL:', errorMessage(error));
+         return;
+       }
+ 
+@@ -592,21 +592,21 @@ function getResumeSessionId(parsedUrl: URL): string | null {
+     const sessionId = decodeURIComponent(parsedUrl.pathname.replace(/^\/+/, '')).trim();
+     return sessionId || null;
+   } catch {
+     return null;
+   }
+ }
+ 
+ async function createResumeChatWindow(parsedUrl: URL, dir?: string): Promise<boolean> {
+   const resumeSessionId = getResumeSessionId(parsedUrl);
+   if (!resumeSessionId) {
+-    log.warn('[Main] Ignoring goose://resume URL without a session id');
++    log.warn('[Main] Ignoring proose://resume URL without a session id');
+     return false;
+   }
+ 
+   await createChat(app, { dir, resumeSessionId });
+   return true;
+ }
+ 
+ async function handleProtocolUrl(url: string, parsedUrl: URL) {
+   if (!url) return;
+ 

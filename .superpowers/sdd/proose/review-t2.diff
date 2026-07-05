@@ -1,0 +1,209 @@
+# Review package: 056cb9d3a..b89093b61
+
+## Commits
+b89093b61 fix(proose): ignore proose binary + update remaining Justfile --bin goose refs
+bd65a33df feat(proose): resolve + bundle the proose server binary
+
+## Files changed
+ .gitignore                        |  1 +
+ Justfile                          | 30 +++++++++++++++---------------
+ ui/desktop/src/gooseServe.test.ts |  2 +-
+ ui/desktop/src/gooseServe.ts      |  2 +-
+ 4 files changed, 18 insertions(+), 17 deletions(-)
+
+## Diff
+diff --git a/.gitignore b/.gitignore
+index fb5d12886..a8b68b2d4 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -54,20 +54,21 @@ debug_*.txt
+ benchmark-*
+ benchconf.json
+ scripts/fake.sh
+ do_not_version/
+ /ui/desktop/src/bin/temporal
+ /temporal-service/temporal.db
+ /ui/desktop/src/bin/temporal.db
+ /temporal.db
+ /ui/desktop/src/bin/goose-scheduler-executor
+ /ui/desktop/src/bin/goose
++/ui/desktop/src/bin/proose
+ /.env
+ 
+ /working_dir
+ 
+ # Local build scripts and generated snapshot artifacts
+ /build.bat
+ /build.ps1
+ /build_check.ps1
+ /crates/goose/src/agents/snapshots/*.snap.new
+ 
+diff --git a/Justfile b/Justfile
+index 63de5dff3..fa488b044 100644
+--- a/Justfile
++++ b/Justfile
+@@ -12,77 +12,77 @@ check-everything:
+     @echo "  → Running clippy linting..."
+     cargo clippy --all-targets -- -D warnings
+     @echo "  → Checking UI code formatting..."
+     cd ui/desktop && pnpm run lint:check
+     @echo ""
+     @echo "✅ All style checks passed!"
+ 
+ # Default release command
+ release-binary:
+     @echo "Building release version..."
+-    cargo build --release -p goose-cli --bin goose
++    cargo build --release -p goose-cli --bin proose
+     @just copy-binary
+     @echo "Generating OpenAPI schema..."
+     cargo run -p goose-server --bin generate_schema
+ 
+ # Build Windows executable on a Windows host
+ [unix]
+ release-windows:
+     @echo "just release-windows requires a Windows host because Goose Windows releases build the MSVC target. Use .github/workflows/bundle-desktop-windows.yml for CI builds."
+     @exit 1
+ 
+ [windows]
+ release-windows:
+-    @powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'rustup target add x86_64-pc-windows-msvc; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; cargo build --release --target x86_64-pc-windows-msvc -p goose-cli --bin goose; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Write-Host "Windows executable created at ./target/x86_64-pc-windows-msvc/release/goose.exe"'
++    @powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'rustup target add x86_64-pc-windows-msvc; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; cargo build --release --target x86_64-pc-windows-msvc -p goose-cli --bin proose; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Write-Host "Windows executable created at ./target/x86_64-pc-windows-msvc/release/proose.exe"'
+ 
+ # Build for Intel Mac
+ release-intel:
+     @echo "Building release version for Intel Mac..."
+     cargo build --release --target x86_64-apple-darwin
+     @just copy-binary-intel
+ 
+ copy-binary BUILD_MODE="release":
+     @rm -f ./ui/desktop/src/bin/goosed
+-    @if [ -f ./target/{{BUILD_MODE}}/goose ]; then \
+-        echo "Copying goose CLI binary from target/{{BUILD_MODE}}..."; \
+-        rm -f ./ui/desktop/src/bin/goose; \
+-        cp -p ./target/{{BUILD_MODE}}/goose ./ui/desktop/src/bin/; \
++    @if [ -f ./target/{{BUILD_MODE}}/proose ]; then \
++        echo "Copying proose CLI binary from target/{{BUILD_MODE}}..."; \
++        rm -f ./ui/desktop/src/bin/proose; \
++        cp -p ./target/{{BUILD_MODE}}/proose ./ui/desktop/src/bin/; \
+     else \
+-        echo "goose CLI binary not found in target/{{BUILD_MODE}}"; \
++        echo "proose CLI binary not found in target/{{BUILD_MODE}}"; \
+         exit 1; \
+     fi
+ 
+ # Copy binary command for Intel build
+ copy-binary-intel:
+     @rm -f ./ui/desktop/src/bin/goosed
+-    @if [ -f ./target/x86_64-apple-darwin/release/goose ]; then \
+-        echo "Copying Intel goose CLI binary to ui/desktop/src/bin..."; \
+-        rm -f ./ui/desktop/src/bin/goose; \
+-        cp -p ./target/x86_64-apple-darwin/release/goose ./ui/desktop/src/bin/; \
++    @if [ -f ./target/x86_64-apple-darwin/release/proose ]; then \
++        echo "Copying Intel proose CLI binary to ui/desktop/src/bin..."; \
++        rm -f ./ui/desktop/src/bin/proose; \
++        cp -p ./target/x86_64-apple-darwin/release/proose ./ui/desktop/src/bin/; \
+     else \
+-        echo "Intel goose CLI binary not found."; \
++        echo "Intel proose CLI binary not found."; \
+         exit 1; \
+     fi
+ 
+ # Copy Windows binary command on a Windows host
+ [unix]
+ copy-binary-windows:
+     @echo "just copy-binary-windows requires a Windows host because it copies the MSVC build output."
+     @exit 1
+ 
+ [windows]
+ copy-binary-windows:
+-    @powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'if (Test-Path ./target/x86_64-pc-windows-msvc/release/goose.exe) { \
++    @powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'if (Test-Path ./target/x86_64-pc-windows-msvc/release/proose.exe) { \
+         Write-Host "Copying Windows binary to ui/desktop/src/bin..."; \
+         New-Item -ItemType Directory -Force "./ui/desktop/src/bin" | Out-Null; \
+         Remove-Item -Path "./ui/desktop/src/bin/goosed.exe" -Force -ErrorAction SilentlyContinue; \
+-        Copy-Item -Path "./target/x86_64-pc-windows-msvc/release/goose.exe" -Destination "./ui/desktop/src/bin/" -Force; \
++        Copy-Item -Path "./target/x86_64-pc-windows-msvc/release/proose.exe" -Destination "./ui/desktop/src/bin/" -Force; \
+     } else { \
+         Write-Host "Windows binary not found." -ForegroundColor Red; \
+         exit 1; \
+     }'
+ 
+ # Run UI with latest
+ run-ui:
+     @just release-binary
+     @echo "Running UI..."
+     cd ui/desktop && pnpm install && pnpm run start-gui
+@@ -140,21 +140,21 @@ run-ui-windows:
+     @powershell.exe -Command "Write-Host 'Running UI...'; Set-Location ui/desktop; pnpm install; pnpm run start-gui"
+ 
+ # Run Docusaurus server for documentation
+ run-docs:
+     @echo "Running docs server..."
+     cd documentation && yarn && yarn start
+ 
+ # Run server
+ run-server:
+     @echo "Running external ACP backend..."
+-    GOOSE_SERVER__SECRET_KEY="${GOOSE_SERVER__SECRET_KEY:-test}" cargo run -p goose-cli --bin goose -- serve --platform desktop --host 127.0.0.1 --port 3000
++    GOOSE_SERVER__SECRET_KEY="${GOOSE_SERVER__SECRET_KEY:-test}" cargo run -p goose-cli --bin proose -- serve --platform desktop --host 127.0.0.1 --port 3000
+ 
+ # Generate OpenAPI specification without starting the UI
+ generate-openapi:
+     @echo "Generating OpenAPI schema..."
+     cargo run -p goose-server --bin generate_schema
+ 
+ # Check if generated ACP schema and TypeScript types are up-to-date
+ check-acp-schema: generate-acp-types
+     #!/usr/bin/env bash
+     set -e
+diff --git a/ui/desktop/src/gooseServe.test.ts b/ui/desktop/src/gooseServe.test.ts
+index 2ee41f2ea..5f74b7e3d 100644
+--- a/ui/desktop/src/gooseServe.test.ts
++++ b/ui/desktop/src/gooseServe.test.ts
+@@ -1,17 +1,17 @@
+ import fs from 'node:fs';
+ import os from 'node:os';
+ import path from 'node:path';
+ import { afterEach, describe, expect, it, vi } from 'vitest';
+ import { buildLocalServeUrls, findGooseBinaryPath, startGooseServe } from './gooseServe';
+ 
+-const binaryName = process.platform === 'win32' ? 'goose.exe' : 'goose';
++const binaryName = process.platform === 'win32' ? 'proose.exe' : 'proose';
+ const tempDirs: string[] = [];
+ const originalCwd = process.cwd();
+ type ReadinessFetchInit = Parameters<typeof globalThis.fetch>[1];
+ 
+ function makeTempDir(): string {
+   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'goose-serve-test-'));
+   tempDirs.push(tempDir);
+   return tempDir;
+ }
+ 
+diff --git a/ui/desktop/src/gooseServe.ts b/ui/desktop/src/gooseServe.ts
+index bfaccaed1..85f41192e 100644
+--- a/ui/desktop/src/gooseServe.ts
++++ b/ui/desktop/src/gooseServe.ts
+@@ -68,21 +68,21 @@ export const findGooseBinaryPath = (options: FindGooseBinaryOptions = {}): strin
+       throw new Error('GOOSE_BINARY is only supported in development builds');
+     }
+ 
+     const resolvedPath = path.resolve(pathFromEnv);
+     if (existingFile(resolvedPath)) {
+       return resolvedPath;
+     }
+     throw new Error(`Invalid GOOSE_BINARY path: ${pathFromEnv} (pwd is ${process.cwd()})`);
+   }
+ 
+-  const binaryName = process.platform === 'win32' ? 'goose.exe' : 'goose';
++  const binaryName = process.platform === 'win32' ? 'proose.exe' : 'proose';
+   const possiblePaths: string[] = [];
+ 
+   if (isPackaged && resourcesPath) {
+     possiblePaths.push(path.join(resourcesPath, 'bin', binaryName));
+     possiblePaths.push(path.join(resourcesPath, binaryName));
+   } else {
+     possiblePaths.push(
+       path.join(process.cwd(), 'src', 'bin', binaryName),
+       path.join(process.cwd(), '..', '..', 'target', 'release', binaryName),
+       path.join(process.cwd(), '..', '..', 'target', 'debug', binaryName)
