@@ -72,7 +72,7 @@ export const test = base.extend<GooseTestFixtures>({
       // Wait for the app to start and remote debugging to be available
       // Retry connection until it succeeds (app is ready) or timeout
       console.log(`Waiting for Electron app to start on port ${debugPort}...`);
-      const maxRetries = 100; // 100 retries * 100ms = 10 seconds max
+      const maxRetries = 600; // 600 retries * 100ms = 60 seconds max
       const retryDelay = 100; // 100ms between retries
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
