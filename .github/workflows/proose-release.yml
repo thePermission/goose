@@ -137,3 +137,32 @@ jobs:
         with:
           name: proose-windows
           path: dist/*
+  release:
+    needs: [build-ubuntu-deb, build-almalinux-rpm, build-windows-zip]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Flatten
+        run: |
+          mkdir -p release-assets
+          find dist -type f -exec cp {} release-assets/ \;
+          ls -1 release-assets
+      - name: Compute tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "TAG=proose-v${{ github.event.inputs.version }}" >> "$GITHUB_ENV"
+          else
+            echo "TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          fi
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          files: release-assets/*
+          prerelease: false
+          fail_on_unmatched_files: true
