@@ -56,7 +56,7 @@ jobs:
     steps:
       - name: Install container build deps
         run: |
-          dnf -y install git gcc gcc-c++ make rpm-build openssl-devel pkgconfig perl which findutils tar xz gzip
+          dnf -y install git gcc gcc-c++ clang clang-devel cmake make rpm-build openssl-devel pkgconfig perl which findutils tar xz gzip
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
