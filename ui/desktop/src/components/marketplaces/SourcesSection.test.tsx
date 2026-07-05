@@ -46,6 +46,14 @@ describe('SourcesSection', () => {
     expect(screen.getByText(/https:\/\/ex\/r\.git/)).toBeInTheDocument();
   });
 
+  it('renders an alert when errors.sources is set (e.g. mount-time load failure)', () => {
+    vi.mocked(useMarketplace).mockReturnValue(
+      makeCtx({ errors: { sources: 'goosed down', browse: null, install: null, installed: null } })
+    );
+    renderWithIntl(<SourcesSection />);
+    expect(screen.getByRole('alert')).toHaveTextContent('goosed down');
+  });
+
   it('rejects an add with empty name or location and does not call addSource', () => {
     const addSource = vi.fn().mockResolvedValue(undefined);
     vi.mocked(useMarketplace).mockReturnValue(makeCtx({ addSource }));

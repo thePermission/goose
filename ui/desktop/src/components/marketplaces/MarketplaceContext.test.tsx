@@ -42,6 +42,22 @@ describe('useMarketplace', () => {
     expect(result.current.installedPlugins[0].name).toBe('demo');
   });
 
+  it('records an error on errors.sources when the mount-time sources load fails', async () => {
+    vi.mocked(marketplaceAcp.listMarketplaces).mockRejectedValue(new Error('goosed down'));
+    const { result } = renderHook(() => useMarketplace(), { wrapper });
+    await waitFor(() => expect(result.current.errors.sources).toBe('goosed down'));
+    expect(result.current.sources).toHaveLength(0);
+    expect(result.current.loading.sources).toBe(false);
+  });
+
+  it('records an error on errors.installed when the mount-time installed load fails', async () => {
+    vi.mocked(marketplaceAcp.listInstalledPlugins).mockRejectedValue(new Error('acp unreachable'));
+    const { result } = renderHook(() => useMarketplace(), { wrapper });
+    await waitFor(() => expect(result.current.errors.installed).toBe('acp unreachable'));
+    expect(result.current.installedPlugins).toHaveLength(0);
+    expect(result.current.loading.installed).toBe(false);
+  });
+
   it('addSource calls the wrapper then refreshes sources', async () => {
     const { result } = renderHook(() => useMarketplace(), { wrapper });
     await waitFor(() => expect(marketplaceAcp.listMarketplaces).toHaveBeenCalledTimes(1));

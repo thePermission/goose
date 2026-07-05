@@ -30,7 +30,7 @@ const i18n = defineMessages({
 
 export default function SourcesSection() {
   const intl = useIntl();
-  const { sources, addSource, removeSource } = useMarketplace();
+  const { sources, addSource, removeSource, errors } = useMarketplace();
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [kind, setKind] = useState('claude');
@@ -72,6 +72,12 @@ export default function SourcesSection() {
   return (
     <section aria-label={intl.formatMessage(i18n.heading)}>
       <h2 className="text-lg font-medium mb-3">{intl.formatMessage(i18n.heading)}</h2>
+
+      {errors.sources !== null && (
+        <p role="alert" className="text-sm text-red-500 mb-3">
+          {errors.sources}
+        </p>
+      )}
 
       {sources.length === 0 ? (
         <p className="text-sm text-text-secondary mb-3">{intl.formatMessage(i18n.empty)}</p>

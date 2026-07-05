@@ -71,6 +71,20 @@ describe('InstalledSection', () => {
     expect(setPluginEnabled).toHaveBeenCalledWith('demo', false);
   });
 
+  it('disables the Switch while a toggle is in flight, guarding against a rapid double-click', async () => {
+    const setPluginEnabled = vi.fn(() => new Promise<void>(() => {}));
+    vi.mocked(useMarketplace).mockReturnValue(
+      makeCtx({ installedPlugins: [plugins[0]], setPluginEnabled })
+    );
+    renderWithIntl(<InstalledSection />);
+    const toggle = screen.getByRole('switch', { name: 'Enable demo' });
+    expect(toggle).not.toBeDisabled();
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).toBeDisabled());
+    fireEvent.click(toggle);
+    expect(setPluginEnabled).toHaveBeenCalledTimes(1);
+  });
+
   it('calls updatePlugin when the Update button is clicked', async () => {
     const updatePlugin = vi.fn().mockResolvedValue(undefined);
     vi.mocked(useMarketplace).mockReturnValue(
@@ -85,6 +99,17 @@ describe('InstalledSection', () => {
     vi.mocked(useMarketplace).mockReturnValue(makeCtx({ installedPlugins: [] }));
     renderWithIntl(<InstalledSection />);
     expect(screen.getByText('No plugins installed yet.')).toBeInTheDocument();
+  });
+
+  it('renders an alert when errors.installed is set (e.g. mount-time load failure)', () => {
+    vi.mocked(useMarketplace).mockReturnValue(
+      makeCtx({
+        installedPlugins: [],
+        errors: { sources: null, browse: null, install: null, installed: 'acp unreachable' },
+      })
+    );
+    renderWithIntl(<InstalledSection />);
+    expect(screen.getByRole('alert')).toHaveTextContent('acp unreachable');
   });
 
   // Additional coverage beyond the brief: Task 1 review flagged that setPluginEnabled/updatePlugin
@@ -107,6 +132,7 @@ describe('InstalledSection', () => {
       expect(screen.getByRole('switch', { name: 'Enable demo' })).toHaveAttribute('aria-checked', 'true')
     );
     expect(toastService.error).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('switch', { name: 'Enable demo' })).not.toBeDisabled();
   });
 
   it('shows a toast when updatePlugin fails and clears the busy state', async () => {

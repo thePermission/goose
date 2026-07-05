@@ -109,7 +109,7 @@ export default function BrowseSection() {
         </p>
       )}
 
-      {browsedSource !== null && catalog.length === 0 && !loading.browse && (
+      {browsedSource !== null && catalog.length === 0 && !loading.browse && errors.browse === null && (
         <p className="text-sm text-text-secondary mb-3">{intl.formatMessage(i18n.empty)}</p>
       )}
 

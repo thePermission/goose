@@ -97,4 +97,24 @@ describe('BrowseSection', () => {
     renderWithIntl(<BrowseSection />);
     expect(screen.getByTestId('marketplace-install')).toBeDisabled();
   });
+
+  it('shows the empty-catalog message when a browse genuinely returns nothing', () => {
+    vi.mocked(useMarketplace).mockReturnValue(makeCtx({ catalog: [], browsedSource: 'core' }));
+    renderWithIntl(<BrowseSection />);
+    expect(screen.getByText('No plugins in this catalog.')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows only the error alert, not the empty-catalog message, when a browse fails', () => {
+    vi.mocked(useMarketplace).mockReturnValue(
+      makeCtx({
+        catalog: [],
+        browsedSource: 'core',
+        errors: { sources: null, browse: 'offline', install: null, installed: null },
+      })
+    );
+    renderWithIntl(<BrowseSection />);
+    expect(screen.getByRole('alert')).toHaveTextContent('offline');
+    expect(screen.queryByText('No plugins in this catalog.')).not.toBeInTheDocument();
+  });
 });

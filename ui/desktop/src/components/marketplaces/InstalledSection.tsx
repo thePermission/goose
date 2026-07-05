@@ -25,9 +25,11 @@ function InstalledPluginRow({ plugin }: { plugin: InstalledPluginInfo }) {
   const { setPluginEnabled, updatePlugin } = useMarketplace();
   const [enabled, setEnabled] = useState(plugin.enabled);
   const [updating, setUpdating] = useState(false);
+  const [toggling, setToggling] = useState(false);
 
   const handleToggle = async (next: boolean) => {
     setEnabled(next);
+    setToggling(true);
     try {
       await setPluginEnabled(plugin.name, next);
     } catch (e) {
@@ -37,6 +39,8 @@ function InstalledPluginRow({ plugin }: { plugin: InstalledPluginInfo }) {
         msg: errorMessage(e),
         traceback: errorMessage(e),
       });
+    } finally {
+      setToggling(false);
     }
   };
 
@@ -80,6 +84,7 @@ function InstalledPluginRow({ plugin }: { plugin: InstalledPluginInfo }) {
         <Switch
           aria-label={intl.formatMessage(i18n.enableLabel, { name: plugin.name })}
           checked={enabled}
+          disabled={toggling}
           onCheckedChange={handleToggle}
         />
       </div>
@@ -89,11 +94,16 @@ function InstalledPluginRow({ plugin }: { plugin: InstalledPluginInfo }) {
 
 export default function InstalledSection() {
   const intl = useIntl();
-  const { installedPlugins, loading } = useMarketplace();
+  const { installedPlugins, loading, errors } = useMarketplace();
 
   return (
     <section aria-label={intl.formatMessage(i18n.heading)}>
       <h2 className="text-lg font-medium mb-3">{intl.formatMessage(i18n.heading)}</h2>
+      {errors.installed !== null && (
+        <p role="alert" className="text-sm text-red-500 mb-3">
+          {errors.installed}
+        </p>
+      )}
       {loading.installed && installedPlugins.length === 0 ? (
         <p className="text-sm text-text-secondary">{intl.formatMessage(i18n.loading)}</p>
       ) : installedPlugins.length === 0 ? (
