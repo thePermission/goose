@@ -1,0 +1,2745 @@
+# Review package: 7e5779955..3e8ecc7d5
+
+## Commits
+3e8ecc7d5 feat(desktop): ACP TS wrappers for marketplace + plugin management
+f4f49aece chore(acp): regenerate schema + SDK for marketplace/plugins methods
+18aa5b4ac feat(acp): plugins list/set-enabled/update handlers
+e406f6de5 feat(acp): marketplace list/add/remove/browse/install handlers
+83b9a66d2 feat(acp-types): marketplace + plugin-management request/response types
+b18da1f4e feat(plugins): set_plugin_enabled via config.yaml plugins map
+96d55ba8c feat(plugins): list_installed_plugins with enabled/updatable state
+8a6d5791a docs(plan): Desktop Marketplaces Plan 2a (backend + ACP + TS wrappers)
+319dec40a docs(spec): Desktop Marketplaces UI – Design (Plan 2, ACP transport)
+
+## Files changed
+ crates/goose-sdk-types/src/custom_requests.rs      | 117 ++++
+ crates/goose/acp-meta.json                         |  40 ++
+ crates/goose/acp-schema.json                       | 378 +++++++++++
+ crates/goose/src/acp/server.rs                     |   1 +
+ crates/goose/src/acp/server/custom_dispatch.rs     |  62 ++
+ crates/goose/src/acp/server/marketplace.rs         | 180 +++++
+ crates/goose/src/plugins/discovery.rs              |  34 +
+ crates/goose/src/plugins/mod.rs                    | 102 +++
+ ...26-07-05-marketplace-desktop-plan-2a-backend.md | 748 +++++++++++++++++++++
+ .../2026-07-05-marketplace-desktop-ui-design.md    |  80 +++
+ ui/desktop/src/acp/marketplace.ts                  |  58 ++
+ ui/sdk/src/generated/client.gen.ts                 |  94 +++
+ ui/sdk/src/generated/index.ts                      |  42 +-
+ ui/sdk/src/generated/types.gen.ts                  |  86 ++-
+ ui/sdk/src/generated/zod.gen.ts                    |  93 +++
+ 15 files changed, 2112 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/crates/goose-sdk-types/src/custom_requests.rs b/crates/goose-sdk-types/src/custom_requests.rs
+index b1c862691..66694e888 100644
+--- a/crates/goose-sdk-types/src/custom_requests.rs
++++ b/crates/goose-sdk-types/src/custom_requests.rs
+@@ -455,20 +455,137 @@ pub struct SetConfigExtensionEnabledRequest {
+ #[serde(rename_all = "camelCase")]
+ pub struct GetSessionExtensionsRequest {
+     pub session_id: String,
+ }
+ 
+ #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+ pub struct GetSessionExtensionsResponse {
+     pub extensions: Vec<GooseExtension>,
+ }
+ 
++// ---- Marketplace + plugin management (Desktop Plan 2) ----
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
++#[serde(rename_all = "camelCase")]
++pub struct MarketplaceSourceInfo {
++    pub name: String,
++    pub kind: String, // "claude" | "codex"
++    pub location: String,
++    pub enabled: bool,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
++#[serde(rename_all = "camelCase")]
++pub struct CatalogPluginInfo {
++    pub name: String,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub description: Option<String>,
++    pub installable: bool,
++    pub source_kind: String, // "relative-path" | "git-subdir" | "git" | "unsupported"
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
++#[serde(rename_all = "camelCase")]
++pub struct InstalledPluginInfo {
++    pub name: String,
++    pub version: String,
++    pub source: String,
++    pub enabled: bool,
++    pub auto_update: bool,
++    pub updatable: bool,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct InstalledPluginResult {
++    pub name: String,
++    pub version: String,
++    pub format: String,
++    pub source: String,
++    pub skills: Vec<String>,
++    pub has_hooks: bool,
++    pub has_mcp: bool,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/marketplace/list", response = ListMarketplacesResponse)]
++pub struct ListMarketplacesRequest {}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct ListMarketplacesResponse {
++    pub marketplaces: Vec<MarketplaceSourceInfo>,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/marketplace/add", response = EmptyResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct AddMarketplaceRequest {
++    pub name: String,
++    pub kind: String,
++    pub location: String,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/marketplace/remove", response = EmptyResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct RemoveMarketplaceRequest {
++    pub name: String,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/marketplace/browse", response = BrowseMarketplaceResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct BrowseMarketplaceRequest {
++    pub name: String,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct BrowseMarketplaceResponse {
++    pub plugins: Vec<CatalogPluginInfo>,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/marketplace/install", response = InstalledPluginResult)]
++#[serde(rename_all = "camelCase")]
++pub struct InstallMarketplacePluginRequest {
++    pub marketplace: String,
++    pub plugin: String,
++    #[serde(default)]
++    pub auto_update: bool,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/plugins/list", response = ListInstalledPluginsResponse)]
++pub struct ListInstalledPluginsRequest {}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct ListInstalledPluginsResponse {
++    pub plugins: Vec<InstalledPluginInfo>,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/plugins/set-enabled", response = EmptyResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct SetPluginEnabledRequest {
++    pub name: String,
++    pub enabled: bool,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/plugins/update", response = InstalledPluginResult)]
++pub struct UpdatePluginRequest {
++    pub name: String,
++}
++
+ /// Read allowlisted user preferences. Empty `keys` means all supported preferences.
+ #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+ #[request(method = "_goose/unstable/preferences/read", response = PreferencesReadResponse)]
+ #[serde(rename_all = "camelCase")]
+ pub struct PreferencesReadRequest {
+     #[serde(default)]
+     pub keys: Vec<PreferenceKey>,
+ }
+ 
+ /// Save allowlisted user preferences.
+diff --git a/crates/goose/acp-meta.json b/crates/goose/acp-meta.json
+index 11260c7dc..61f13e14b 100644
+--- a/crates/goose/acp-meta.json
++++ b/crates/goose/acp-meta.json
+@@ -113,20 +113,60 @@
+     {
+       "method": "_goose/unstable/config/extensions/set-enabled",
+       "requestType": "SetConfigExtensionEnabledRequest_unstable",
+       "responseType": "EmptyResponse"
+     },
+     {
+       "method": "_goose/unstable/session/extensions/list",
+       "requestType": "GetSessionExtensionsRequest_unstable",
+       "responseType": "GetSessionExtensionsResponse_unstable"
+     },
++    {
++      "method": "_goose/unstable/marketplace/list",
++      "requestType": "ListMarketplacesRequest_unstable",
++      "responseType": "ListMarketplacesResponse_unstable"
++    },
++    {
++      "method": "_goose/unstable/marketplace/add",
++      "requestType": "AddMarketplaceRequest_unstable",
++      "responseType": "EmptyResponse"
++    },
++    {
++      "method": "_goose/unstable/marketplace/remove",
++      "requestType": "RemoveMarketplaceRequest_unstable",
++      "responseType": "EmptyResponse"
++    },
++    {
++      "method": "_goose/unstable/marketplace/browse",
++      "requestType": "BrowseMarketplaceRequest_unstable",
++      "responseType": "BrowseMarketplaceResponse_unstable"
++    },
++    {
++      "method": "_goose/unstable/marketplace/install",
++      "requestType": "InstallMarketplacePluginRequest_unstable",
++      "responseType": "InstalledPluginResult_unstable"
++    },
++    {
++      "method": "_goose/unstable/plugins/list",
++      "requestType": "ListInstalledPluginsRequest_unstable",
++      "responseType": "ListInstalledPluginsResponse_unstable"
++    },
++    {
++      "method": "_goose/unstable/plugins/set-enabled",
++      "requestType": "SetPluginEnabledRequest_unstable",
++      "responseType": "EmptyResponse"
++    },
++    {
++      "method": "_goose/unstable/plugins/update",
++      "requestType": "UpdatePluginRequest_unstable",
++      "responseType": "InstalledPluginResult_unstable"
++    },
+     {
+       "method": "_goose/unstable/providers/list",
+       "requestType": "ListProvidersRequest_unstable",
+       "responseType": "ListProvidersResponse_unstable"
+     },
+     {
+       "method": "_goose/unstable/providers/supported-models/list",
+       "requestType": "ProviderSupportedModelsListRequest_unstable",
+       "responseType": "ProviderSupportedModelsListResponse_unstable"
+     },
+diff --git a/crates/goose/acp-schema.json b/crates/goose/acp-schema.json
+index f4507f5cf..10f564d15 100644
+--- a/crates/goose/acp-schema.json
++++ b/crates/goose/acp-schema.json
+@@ -1591,20 +1591,294 @@
+             "$ref": "#/$defs/GooseExtension"
+           }
+         }
+       },
+       "required": [
+         "extensions"
+       ],
+       "x-side": "agent",
+       "x-method": "_goose/unstable/session/extensions/list"
+     },
++    "ListMarketplacesRequest_unstable": {
++      "type": "object",
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/list"
++    },
++    "ListMarketplacesResponse_unstable": {
++      "type": "object",
++      "properties": {
++        "marketplaces": {
++          "type": "array",
++          "items": {
++            "$ref": "#/$defs/MarketplaceSourceInfo"
++          }
++        }
++      },
++      "required": [
++        "marketplaces"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/list"
++    },
++    "MarketplaceSourceInfo": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        },
++        "kind": {
++          "type": "string"
++        },
++        "location": {
++          "type": "string"
++        },
++        "enabled": {
++          "type": "boolean"
++        }
++      },
++      "required": [
++        "name",
++        "kind",
++        "location",
++        "enabled"
++      ]
++    },
++    "AddMarketplaceRequest_unstable": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        },
++        "kind": {
++          "type": "string"
++        },
++        "location": {
++          "type": "string"
++        }
++      },
++      "required": [
++        "name",
++        "kind",
++        "location"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/add"
++    },
++    "RemoveMarketplaceRequest_unstable": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        }
++      },
++      "required": [
++        "name"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/remove"
++    },
++    "BrowseMarketplaceRequest_unstable": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        }
++      },
++      "required": [
++        "name"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/browse"
++    },
++    "BrowseMarketplaceResponse_unstable": {
++      "type": "object",
++      "properties": {
++        "plugins": {
++          "type": "array",
++          "items": {
++            "$ref": "#/$defs/CatalogPluginInfo"
++          }
++        }
++      },
++      "required": [
++        "plugins"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/browse"
++    },
++    "CatalogPluginInfo": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        },
++        "description": {
++          "type": [
++            "string",
++            "null"
++          ]
++        },
++        "installable": {
++          "type": "boolean"
++        },
++        "sourceKind": {
++          "type": "string"
++        }
++      },
++      "required": [
++        "name",
++        "installable",
++        "sourceKind"
++      ]
++    },
++    "InstallMarketplacePluginRequest_unstable": {
++      "type": "object",
++      "properties": {
++        "marketplace": {
++          "type": "string"
++        },
++        "plugin": {
++          "type": "string"
++        },
++        "autoUpdate": {
++          "type": "boolean",
++          "default": false
++        }
++      },
++      "required": [
++        "marketplace",
++        "plugin"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/install"
++    },
++    "InstalledPluginResult_unstable": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        },
++        "version": {
++          "type": "string"
++        },
++        "format": {
++          "type": "string"
++        },
++        "source": {
++          "type": "string"
++        },
++        "skills": {
++          "type": "array",
++          "items": {
++            "type": "string"
++          }
++        },
++        "hasHooks": {
++          "type": "boolean"
++        },
++        "hasMcp": {
++          "type": "boolean"
++        }
++      },
++      "required": [
++        "name",
++        "version",
++        "format",
++        "source",
++        "skills",
++        "hasHooks",
++        "hasMcp"
++      ],
++      "x-side": "agent"
++    },
++    "ListInstalledPluginsRequest_unstable": {
++      "type": "object",
++      "x-side": "agent",
++      "x-method": "_goose/unstable/plugins/list"
++    },
++    "ListInstalledPluginsResponse_unstable": {
++      "type": "object",
++      "properties": {
++        "plugins": {
++          "type": "array",
++          "items": {
++            "$ref": "#/$defs/InstalledPluginInfo"
++          }
++        }
++      },
++      "required": [
++        "plugins"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/plugins/list"
++    },
++    "InstalledPluginInfo": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        },
++        "version": {
++          "type": "string"
++        },
++        "source": {
++          "type": "string"
++        },
++        "enabled": {
++          "type": "boolean"
++        },
++        "autoUpdate": {
++          "type": "boolean"
++        },
++        "updatable": {
++          "type": "boolean"
++        }
++      },
++      "required": [
++        "name",
++        "version",
++        "source",
++        "enabled",
++        "autoUpdate",
++        "updatable"
++      ]
++    },
++    "SetPluginEnabledRequest_unstable": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        },
++        "enabled": {
++          "type": "boolean"
++        }
++      },
++      "required": [
++        "name",
++        "enabled"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/plugins/set-enabled"
++    },
++    "UpdatePluginRequest_unstable": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        }
++      },
++      "required": [
++        "name"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/plugins/update"
++    },
+     "ListProvidersRequest_unstable": {
+       "type": "object",
+       "properties": {
+         "providerIds": {
+           "type": "array",
+           "items": {
+             "type": "string"
+           },
+           "description": "Only return entries for these providers. Empty means all.",
+           "default": []
+@@ -6924,20 +7198,92 @@
+                 },
+                 {
+                   "allOf": [
+                     {
+                       "$ref": "#/$defs/GetSessionExtensionsRequest_unstable"
+                     }
+                   ],
+                   "description": "Params for _goose/unstable/session/extensions/list",
+                   "title": "GetSessionExtensionsRequest_unstable"
+                 },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/ListMarketplacesRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/marketplace/list",
++                  "title": "ListMarketplacesRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/AddMarketplaceRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/marketplace/add",
++                  "title": "AddMarketplaceRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/RemoveMarketplaceRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/marketplace/remove",
++                  "title": "RemoveMarketplaceRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/BrowseMarketplaceRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/marketplace/browse",
++                  "title": "BrowseMarketplaceRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/InstallMarketplacePluginRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/marketplace/install",
++                  "title": "InstallMarketplacePluginRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/ListInstalledPluginsRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/plugins/list",
++                  "title": "ListInstalledPluginsRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/SetPluginEnabledRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/plugins/set-enabled",
++                  "title": "SetPluginEnabledRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/UpdatePluginRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/plugins/update",
++                  "title": "UpdatePluginRequest_unstable"
++                },
+                 {
+                   "allOf": [
+                     {
+                       "$ref": "#/$defs/ListProvidersRequest_unstable"
+                     }
+                   ],
+                   "description": "Params for _goose/unstable/providers/list",
+                   "title": "ListProvidersRequest_unstable"
+                 },
+                 {
+@@ -7865,20 +8211,52 @@
+                       "title": "GetAvailableExtensionsResponse_unstable"
+                     },
+                     {
+                       "allOf": [
+                         {
+                           "$ref": "#/$defs/GetSessionExtensionsResponse_unstable"
+                         }
+                       ],
+                       "title": "GetSessionExtensionsResponse_unstable"
+                     },
++                    {
++                      "allOf": [
++                        {
++                          "$ref": "#/$defs/ListMarketplacesResponse_unstable"
++                        }
++                      ],
++                      "title": "ListMarketplacesResponse_unstable"
++                    },
++                    {
++                      "allOf": [
++                        {
++                          "$ref": "#/$defs/BrowseMarketplaceResponse_unstable"
++                        }
++                      ],
++                      "title": "BrowseMarketplaceResponse_unstable"
++                    },
++                    {
++                      "allOf": [
++                        {
++                          "$ref": "#/$defs/InstalledPluginResult_unstable"
++                        }
++                      ],
++                      "title": "InstalledPluginResult_unstable"
++                    },
++                    {
++                      "allOf": [
++                        {
++                          "$ref": "#/$defs/ListInstalledPluginsResponse_unstable"
++                        }
++                      ],
++                      "title": "ListInstalledPluginsResponse_unstable"
++                    },
+                     {
+                       "allOf": [
+                         {
+                           "$ref": "#/$defs/ListProvidersResponse_unstable"
+                         }
+                       ],
+                       "title": "ListProvidersResponse_unstable"
+                     },
+                     {
+                       "allOf": [
+diff --git a/crates/goose/src/acp/server.rs b/crates/goose/src/acp/server.rs
+index 5365f1b9b..e991005ea 100644
+--- a/crates/goose/src/acp/server.rs
++++ b/crates/goose/src/acp/server.rs
+@@ -88,20 +88,21 @@ mod custom_dispatch;
+ mod diagnostics;
+ mod dictation;
+ mod dispatch;
+ mod elicitation;
+ mod extensions;
+ mod fork_session;
+ mod list_sessions;
+ mod load_session;
+ mod local_inference;
+ mod manage_sessions;
++mod marketplace;
+ mod new_session;
+ mod onboarding;
+ mod prompts;
+ mod providers;
+ mod recipe;
+ mod resources;
+ mod schedule;
+ mod slash_commands;
+ mod sources;
+ mod tool_notifications;
+diff --git a/crates/goose/src/acp/server/custom_dispatch.rs b/crates/goose/src/acp/server/custom_dispatch.rs
+index 0e78d2b5f..1c98fdecc 100644
+--- a/crates/goose/src/acp/server/custom_dispatch.rs
++++ b/crates/goose/src/acp/server/custom_dispatch.rs
+@@ -212,20 +212,82 @@ impl GooseAcpAgent {
+     }
+ 
+     #[custom_method(GetSessionExtensionsRequest)]
+     async fn dispatch_get_session_extensions(
+         &self,
+         req: GetSessionExtensionsRequest,
+     ) -> Result<GetSessionExtensionsResponse, agent_client_protocol::Error> {
+         self.on_get_session_extensions(req).await
+     }
+ 
++    #[custom_method(ListMarketplacesRequest)]
++    async fn dispatch_marketplace_list(
++        &self,
++    ) -> Result<ListMarketplacesResponse, agent_client_protocol::Error> {
++        self.on_marketplace_list().await
++    }
++
++    #[custom_method(AddMarketplaceRequest)]
++    async fn dispatch_marketplace_add(
++        &self,
++        req: AddMarketplaceRequest,
++    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
++        self.on_marketplace_add(req).await
++    }
++
++    #[custom_method(RemoveMarketplaceRequest)]
++    async fn dispatch_marketplace_remove(
++        &self,
++        req: RemoveMarketplaceRequest,
++    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
++        self.on_marketplace_remove(req).await
++    }
++
++    #[custom_method(BrowseMarketplaceRequest)]
++    async fn dispatch_marketplace_browse(
++        &self,
++        req: BrowseMarketplaceRequest,
++    ) -> Result<BrowseMarketplaceResponse, agent_client_protocol::Error> {
++        self.on_marketplace_browse(req).await
++    }
++
++    #[custom_method(InstallMarketplacePluginRequest)]
++    async fn dispatch_marketplace_install(
++        &self,
++        req: InstallMarketplacePluginRequest,
++    ) -> Result<InstalledPluginResult, agent_client_protocol::Error> {
++        self.on_marketplace_install(req).await
++    }
++
++    #[custom_method(ListInstalledPluginsRequest)]
++    async fn dispatch_plugins_list(
++        &self,
++    ) -> Result<ListInstalledPluginsResponse, agent_client_protocol::Error> {
++        self.on_plugins_list().await
++    }
++
++    #[custom_method(SetPluginEnabledRequest)]
++    async fn dispatch_plugins_set_enabled(
++        &self,
++        req: SetPluginEnabledRequest,
++    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
++        self.on_plugins_set_enabled(req).await
++    }
++
++    #[custom_method(UpdatePluginRequest)]
++    async fn dispatch_plugins_update(
++        &self,
++        req: UpdatePluginRequest,
++    ) -> Result<InstalledPluginResult, agent_client_protocol::Error> {
++        self.on_plugins_update(req).await
++    }
++
+     #[custom_method(ListProvidersRequest)]
+     async fn dispatch_list_providers(
+         &self,
+         req: ListProvidersRequest,
+     ) -> Result<ListProvidersResponse, agent_client_protocol::Error> {
+         self.on_list_providers(req).await
+     }
+ 
+     #[custom_method(ProviderSupportedModelsListRequest)]
+     async fn dispatch_list_provider_supported_models(
+diff --git a/crates/goose/src/acp/server/marketplace.rs b/crates/goose/src/acp/server/marketplace.rs
+new file mode 100644
+index 000000000..a80c730c5
+--- /dev/null
++++ b/crates/goose/src/acp/server/marketplace.rs
+@@ -0,0 +1,180 @@
++use super::*;
++use crate::marketplace::catalog::PluginSource;
++use crate::marketplace::{MarketplaceKind, MarketplaceSource};
++
++fn parse_kind(kind: &str) -> Result<MarketplaceKind, agent_client_protocol::Error> {
++    match kind {
++        "claude" => Ok(MarketplaceKind::Claude),
++        "codex" => Ok(MarketplaceKind::Codex),
++        other => Err(agent_client_protocol::Error::invalid_params()
++            .data(format!("unknown marketplace kind '{other}'"))),
++    }
++}
++
++fn source_kind_label(s: &PluginSource) -> &'static str {
++    match s {
++        PluginSource::RelativePath(_) => "relative-path",
++        PluginSource::GitSubdir { .. } => "git-subdir",
++        PluginSource::Git { .. } => "git",
++        PluginSource::Unsupported(_) => "unsupported",
++    }
++}
++
++impl GooseAcpAgent {
++    pub(super) async fn on_marketplace_list(
++        &self,
++    ) -> Result<ListMarketplacesResponse, agent_client_protocol::Error> {
++        let list = crate::marketplace::registry::list_marketplaces().internal_err()?;
++        Ok(ListMarketplacesResponse {
++            marketplaces: list
++                .into_iter()
++                .map(|m| MarketplaceSourceInfo {
++                    name: m.name,
++                    kind: format!("{:?}", m.kind).to_lowercase(),
++                    location: m.location,
++                    enabled: m.enabled,
++                })
++                .collect(),
++        })
++    }
++
++    pub(super) async fn on_marketplace_add(
++        &self,
++        req: AddMarketplaceRequest,
++    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
++        let kind = parse_kind(&req.kind)?;
++        crate::marketplace::registry::add_marketplace(MarketplaceSource {
++            name: req.name,
++            kind,
++            location: req.location,
++            enabled: true,
++        })
++        .map_err(|e| agent_client_protocol::Error::invalid_params().data(e.to_string()))?;
++        Ok(EmptyResponse {})
++    }
++
++    pub(super) async fn on_marketplace_remove(
++        &self,
++        req: RemoveMarketplaceRequest,
++    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
++        let removed = crate::marketplace::registry::remove_marketplace(&req.name).internal_err()?;
++        if !removed {
++            return Err(agent_client_protocol::Error::invalid_params()
++                .data(format!("marketplace '{}' not found", req.name)));
++        }
++        Ok(EmptyResponse {})
++    }
++
++    pub(super) async fn on_marketplace_browse(
++        &self,
++        req: BrowseMarketplaceRequest,
++    ) -> Result<BrowseMarketplaceResponse, agent_client_protocol::Error> {
++        let src = crate::marketplace::registry::list_marketplaces()
++            .internal_err()?
++            .into_iter()
++            .find(|m| m.name == req.name)
++            .ok_or_else(|| {
++                agent_client_protocol::Error::invalid_params()
++                    .data(format!("marketplace '{}' not found", req.name))
++            })?;
++        let plugins = crate::marketplace::fetch::fetch_catalog(&src)
++            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
++        Ok(BrowseMarketplaceResponse {
++            plugins: plugins
++                .into_iter()
++                .map(|p| CatalogPluginInfo {
++                    installable: !matches!(p.source, PluginSource::Unsupported(_)),
++                    source_kind: source_kind_label(&p.source).to_string(),
++                    name: p.name,
++                    description: p.description,
++                })
++                .collect(),
++        })
++    }
++
++    pub(super) async fn on_marketplace_install(
++        &self,
++        req: InstallMarketplacePluginRequest,
++    ) -> Result<InstalledPluginResult, agent_client_protocol::Error> {
++        let src = crate::marketplace::registry::list_marketplaces()
++            .internal_err()?
++            .into_iter()
++            .find(|m| m.name == req.marketplace)
++            .ok_or_else(|| {
++                agent_client_protocol::Error::invalid_params()
++                    .data(format!("marketplace '{}' not found", req.marketplace))
++            })?;
++        let tmp = tempfile::tempdir()
++            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
++        crate::plugins::clone_marketplace_repo(&src.location, tmp.path())
++            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
++        let entry = crate::marketplace::fetch::fetch_catalog_from_dir(&src, tmp.path())
++            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?
++            .into_iter()
++            .find(|p| p.name == req.plugin)
++            .ok_or_else(|| {
++                agent_client_protocol::Error::invalid_params().data(format!(
++                    "plugin '{}' not found in marketplace '{}'",
++                    req.plugin, req.marketplace
++                ))
++            })?;
++        let install = crate::marketplace::install::install_catalog_plugin(
++            &entry,
++            tmp.path(),
++            crate::plugins::PluginInstallOptions {
++                auto_update: req.auto_update,
++            },
++        )
++        .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
++        Ok(install_to_result(install))
++    }
++
++    pub(super) async fn on_plugins_list(
++        &self,
++    ) -> Result<ListInstalledPluginsResponse, agent_client_protocol::Error> {
++        let plugins = crate::plugins::list_installed_plugins()
++            .into_iter()
++            .map(|p| InstalledPluginInfo {
++                name: p.name,
++                version: p.version,
++                source: p.source,
++                enabled: p.enabled,
++                auto_update: p.auto_update,
++                updatable: p.updatable,
++            })
++            .collect();
++        Ok(ListInstalledPluginsResponse { plugins })
++    }
++
++    pub(super) async fn on_plugins_set_enabled(
++        &self,
++        req: SetPluginEnabledRequest,
++    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
++        crate::plugins::set_plugin_enabled(&req.name, req.enabled)
++            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
++        Ok(EmptyResponse {})
++    }
++
++    pub(super) async fn on_plugins_update(
++        &self,
++        req: UpdatePluginRequest,
++    ) -> Result<InstalledPluginResult, agent_client_protocol::Error> {
++        let install = crate::plugins::update_plugin(&req.name)
++            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
++        Ok(install_to_result(install))
++    }
++}
++
++fn install_to_result(install: crate::plugins::PluginInstall) -> InstalledPluginResult {
++    let has_hooks = install.directory.join("hooks/hooks.json").is_file();
++    let has_mcp = install.directory.join(".mcp.json").is_file();
++    InstalledPluginResult {
++        name: install.name,
++        version: install.version,
++        format: install.format.to_string(),
++        source: install.source,
++        skills: install.skills.into_iter().map(|s| s.name).collect(),
++        has_hooks,
++        has_mcp,
++    }
++}
+diff --git a/crates/goose/src/plugins/discovery.rs b/crates/goose/src/plugins/discovery.rs
+index cdd80a652..061d39702 100644
+--- a/crates/goose/src/plugins/discovery.rs
++++ b/crates/goose/src/plugins/discovery.rs
+@@ -112,20 +112,41 @@ fn filter_by_config(plugins: Vec<DiscoveredPlugin>, config: &Config) -> Vec<Disc
+ 
+     if dirty {
+         if let Err(e) = config.set_param(PLUGINS_CONFIG_KEY, entries) {
+             tracing::warn!(error = %e, "Failed to persist plugin config entries");
+         }
+     }
+ 
+     enabled
+ }
+ 
++/// Read the `plugins` enable-map from config.yaml as path -> enabled.
++pub(crate) fn plugin_enabled_map(config: &Config) -> HashMap<String, bool> {
++    let entries: HashMap<String, PluginConfigEntry> =
++        config.get_param(PLUGINS_CONFIG_KEY).unwrap_or_default();
++    entries.into_iter().map(|(k, v)| (k, v.enabled)).collect()
++}
++
++/// Set the enabled state for a plugin in the `plugins` map in config.yaml,
++/// keyed by the plugin's filesystem path.
++pub(crate) fn set_plugin_enabled_path(
++    config: &Config,
++    path_key: &str,
++    enabled: bool,
++) -> anyhow::Result<()> {
++    let mut entries: HashMap<String, PluginConfigEntry> =
++        config.get_param(PLUGINS_CONFIG_KEY).unwrap_or_default();
++    entries.insert(path_key.to_string(), PluginConfigEntry { enabled });
++    config.set_param(PLUGINS_CONFIG_KEY, serde_json::to_value(&entries)?)?;
++    Ok(())
++}
++
+ fn is_enabled(plugin_name: &str, scoped_settings: &[(SettingsScope, PluginSettings)]) -> bool {
+     for scope in [
+         SettingsScope::Local,
+         SettingsScope::Project,
+         SettingsScope::User,
+     ] {
+         let Some(settings) = scoped_settings
+             .iter()
+             .find_map(|(s, settings)| (*s == scope).then_some(settings))
+         else {
+@@ -400,20 +421,33 @@ mod tests {
+             .join("demo")
+             .to_string_lossy()
+             .to_string();
+         let entries = HashMap::from([(key, PluginConfigEntry { enabled: false })]);
+         config.set_param(PLUGINS_CONFIG_KEY, entries).unwrap();
+ 
+         let found = discover_enabled_plugins_with_config(Some(project), &config);
+         assert!(found.iter().all(|p| p.name != "demo"));
+     }
+ 
++    #[test]
++    fn set_plugin_enabled_path_roundtrip() {
++        let tmp = tempfile::tempdir().unwrap();
++        let cfg = Config::new(tmp.path().join("config.yaml"), "k").unwrap();
++        set_plugin_enabled_path(&cfg, "/x/plugins/demo", false).unwrap();
++        assert_eq!(
++            plugin_enabled_map(&cfg).get("/x/plugins/demo"),
++            Some(&false)
++        );
++        set_plugin_enabled_path(&cfg, "/x/plugins/demo", true).unwrap();
++        assert_eq!(plugin_enabled_map(&cfg).get("/x/plugins/demo"), Some(&true));
++    }
++
+     #[test]
+     fn enabled_in_config_keeps_plugin_without_modifying_config() {
+         let tmp = tempfile::tempdir().unwrap();
+         let project = tmp.path();
+         write_plugin_dir(&project.join(".agents").join("plugins"), "demo");
+ 
+         let cfg_dir = tempfile::tempdir().unwrap();
+         let config = test_config(cfg_dir.path());
+         let key = project
+             .join(".agents")
+diff --git a/crates/goose/src/plugins/mod.rs b/crates/goose/src/plugins/mod.rs
+index c01584d8c..5749f165a 100644
+--- a/crates/goose/src/plugins/mod.rs
++++ b/crates/goose/src/plugins/mod.rs
+@@ -79,20 +79,89 @@ struct InstallMetadata {
+     source: String,
+     source_type: String,
+     #[allow(dead_code)]
+     format: String,
+     #[serde(default)]
+     auto_update: bool,
+     #[serde(default)]
+     last_update_check: Option<DateTime<Utc>>,
+ }
+ 
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct InstalledPlugin {
++    pub name: String,
++    pub version: String,
++    pub source: String,
++    pub enabled: bool,
++    pub auto_update: bool,
++    pub updatable: bool,
++}
++
++pub fn list_installed_plugins() -> Vec<InstalledPlugin> {
++    list_installed_plugins_at_root(&plugin_install_dir(), crate::config::Config::global())
++}
++
++fn list_installed_plugins_at_root(
++    root: &Path,
++    config: &crate::config::Config,
++) -> Vec<InstalledPlugin> {
++    let enabled_map = crate::plugins::discovery::plugin_enabled_map(config);
++    let entries = match fs::read_dir(root) {
++        Ok(e) => e,
++        Err(_) => return Vec::new(),
++    };
++    let mut out = Vec::new();
++    for entry in entries.flatten() {
++        let dir = entry.path();
++        if !dir.is_dir() {
++            continue;
++        }
++        let name = match dir.file_name().and_then(|n| n.to_str()) {
++            Some(n) => n.to_string(),
++            None => continue,
++        };
++        let version = formats::open_plugins::read_manifest(&dir, "")
++            .ok()
++            .and_then(|m| m.version)
++            .unwrap_or_else(|| "unknown".to_string());
++        let (source, auto_update, updatable) = match read_install_metadata(&dir) {
++            Ok(m) => (m.source, m.auto_update, m.source_type == "git"),
++            Err(_) => (String::new(), false, false),
++        };
++        let enabled = enabled_map
++            .get(&dir.to_string_lossy().to_string())
++            .copied()
++            .unwrap_or(true);
++        out.push(InstalledPlugin {
++            name,
++            version,
++            source,
++            enabled,
++            auto_update,
++            updatable,
++        });
++    }
++    out.sort_by(|a, b| a.name.cmp(&b.name));
++    out
++}
++
++/// Toggle a plugin's enabled state in the `plugins` map in `config.yaml`,
++/// keyed by the plugin's absolute install directory path.
++pub fn set_plugin_enabled(name: &str, enabled: bool) -> Result<()> {
++    let path = plugin_install_dir().join(name);
++    crate::plugins::discovery::set_plugin_enabled_path(
++        crate::config::Config::global(),
++        &path.to_string_lossy(),
++        enabled,
++    )
++}
++
+ pub fn installed_plugin_skill_dirs() -> Vec<PathBuf> {
+     let plugins_dir = plugin_install_dir();
+     for update in auto_update_plugins_at_root(Utc::now(), &plugins_dir) {
+         if let Err(err) = update.result {
+             warn!(
+                 "Failed to auto-update plugin '{}': {}. Using currently installed version.",
+                 update.name, err
+             );
+         }
+     }
+@@ -465,20 +534,53 @@ fn copy_dir_all(source: &Path, destination: &Path) -> Result<()> {
+         }
+     }
+ 
+     Ok(())
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn lists_installed_plugins_with_state() {
++        let tmp = tempfile::tempdir().unwrap();
++        let root = tmp.path().join("plugins");
++        let dir = root.join("demo");
++        std::fs::create_dir_all(dir.join(".claude-plugin")).unwrap();
++        std::fs::write(
++            dir.join(".claude-plugin/plugin.json"),
++            r#"{"name":"demo","version":"2.0.0","description":"d"}"#,
++        )
++        .unwrap();
++        std::fs::write(
++            dir.join(INSTALL_METADATA),
++            r#"{"source":"m:demo","source_type":"git","format":"claude","auto_update":true}"#,
++        )
++        .unwrap();
++        let cfg = crate::config::Config::new(tmp.path().join("config.yaml"), "k").unwrap();
++        // mark demo disabled via the config.yaml plugins map (keyed by path)
++        let key = dir.to_string_lossy().to_string();
++        cfg.set_param("plugins", serde_json::json!({ key: { "enabled": false } }))
++            .unwrap();
++
++        let list = list_installed_plugins_at_root(&root, &cfg);
++        assert_eq!(list.len(), 1);
++        let p = &list[0];
++        assert_eq!(p.name, "demo");
++        assert_eq!(p.version, "2.0.0");
++        assert_eq!(p.source, "m:demo");
++        assert!(p.auto_update);
++        assert!(p.updatable); // source_type == "git"
++        assert!(!p.enabled); // disabled in config map
++    }
++
+     #[test]
+     fn rejects_repo_without_supported_manifest() {
+         let install_root = tempfile::tempdir().unwrap();
+         let repo = tempfile::tempdir().unwrap();
+ 
+         let err = install_from_checkout_at_root(
+             "https://example.invalid/repo.git",
+             repo.path(),
+             install_root.path(),
+             &PluginInstallOptions::default(),
+diff --git a/docs/superpowers/plans/2026-07-05-marketplace-desktop-plan-2a-backend.md b/docs/superpowers/plans/2026-07-05-marketplace-desktop-plan-2a-backend.md
+new file mode 100644
+index 000000000..d6492bd4a
+--- /dev/null
++++ b/docs/superpowers/plans/2026-07-05-marketplace-desktop-plan-2a-backend.md
+@@ -0,0 +1,748 @@
++# Desktop Marketplaces — Plan 2a (Backend + ACP + TS wrappers)
++
++> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
++
++**Goal:** Expose the Plan-1 marketplace core (sources CRUD, browse, install) plus installed-plugin management (list/enable-disable/update) to the goose Desktop via the ACP JSON-RPC path, ending with typed TypeScript wrappers callable from the app.
++
++**Architecture:** Follow the live Extensions triad — wire request/response structs in `goose-sdk-types`, dispatch arms in `custom_dispatch.rs`, handler methods in a new `acp/server/marketplace.rs`, regenerate the ACP SDK, then thin TS wrappers in `ui/desktop/src/acp/marketplace.ts`. Two additive Rust-core functions back the installed-plugin management.
++
++**Tech Stack:** Rust (`goose`, `goose-sdk-types`), ACP macros (`goose-acp-macros`), `just` codegen, TypeScript SDK (`@aaif/goose-sdk`), pnpm.
++
++## Global Constraints
++
++- **This is the follow-up to Plan 1** (branch `feature/marketplace-desktop-ui`, based on `feature/marketplace-federation`). The `goose::marketplace` module (`registry`, `fetch`, `catalog`, `install`) already exists — reuse it, do not reimplement.
++- **Transport is ACP, not REST.** Do not touch `crates/goose-server/.../config_management.rs` or `openapi.json`.
++- **Plugin enable/disable state lives in the writable `config.yaml` `plugins` map**, keyed by the plugin's **absolute directory path** (`{ "<path>": { "enabled": bool } }`) — NOT `settings.json` (read-only), NOT keyed by name.
++- ACP request structs MUST derive `Default` + `JsonRpcRequest`; response structs derive `JsonRpcResponse`; method strings are `_goose/unstable/marketplace/<verb>` and `_goose/unstable/plugins/<verb>`. Generated client methods are `client.goose.<camelCase>_unstable(...)`.
++- After changing ACP types/handlers you MUST run `just generate-acp-types` and **commit** the regenerated `crates/goose/acp-{schema,meta}.json` + `ui/sdk/src/generated/*` (CI `check-acp-schema` enforces freshness).
++- Rust tests network-free (`tempfile` fixtures / local `git init`). Build/test the goose crate with `cargo test -p goose --lib` (no default features → no cmake needed). clippy: `cargo clippy -p goose -- -D warnings`; fmt: `cargo fmt`.
++- Trust: `install` response must carry enough to warn the user (skills list + hooks/MCP presence + source).
++
++---
++
++### Task 1: Rust core — `InstalledPlugin` + `list_installed_plugins()`
++
++**Files:**
++- Modify: `crates/goose/src/plugins/mod.rs`
++- Modify: `crates/goose/src/plugins/discovery.rs` (expose a `pub(crate)` enabled-state reader)
++- Test: `crates/goose/src/plugins/mod.rs` (`#[cfg(test)]`)
++
++**Interfaces:**
++- Produces: `pub struct InstalledPlugin { name, version, source, enabled, auto_update, updatable }`; `pub fn list_installed_plugins() -> Vec<InstalledPlugin>` (+ `_at_root` test variant); `discovery::plugin_enabled_map(&Config) -> std::collections::HashMap<String, bool>`.
++
++- [ ] **Step 1: Failing test** (`mod.rs` test module)
++
++```rust
++#[test]
++fn lists_installed_plugins_with_state() {
++    let tmp = tempfile::tempdir().unwrap();
++    let root = tmp.path().join("plugins");
++    let dir = root.join("demo");
++    std::fs::create_dir_all(dir.join(".claude-plugin")).unwrap();
++    std::fs::write(dir.join(".claude-plugin/plugin.json"),
++        r#"{"name":"demo","version":"2.0.0","description":"d"}"#).unwrap();
++    std::fs::write(dir.join(INSTALL_METADATA),
++        r#"{"source":"m:demo","source_type":"git","format":"claude","auto_update":true}"#).unwrap();
++    let cfg = crate::config::Config::new(tmp.path().join("config.yaml"), "k").unwrap();
++    // mark demo disabled via the config.yaml plugins map (keyed by path)
++    let key = dir.to_string_lossy().to_string();
++    cfg.set_param("plugins", serde_json::json!({ key: { "enabled": false } })).unwrap();
++
++    let list = list_installed_plugins_at_root(&root, &cfg);
++    assert_eq!(list.len(), 1);
++    let p = &list[0];
++    assert_eq!(p.name, "demo");
++    assert_eq!(p.version, "2.0.0");
++    assert_eq!(p.source, "m:demo");
++    assert!(p.auto_update);
++    assert!(p.updatable);        // source_type == "git"
++    assert!(!p.enabled);         // disabled in config map
++}
++```
++
++- [ ] **Step 2: Run — fails** — `cargo test -p goose --lib plugins::tests::lists_installed_plugins_with_state` → FAIL (symbols missing).
++
++- [ ] **Step 3: discovery.rs — expose enabled-state reader**
++
++Add to `crates/goose/src/plugins/discovery.rs` (reuses existing `PLUGINS_CONFIG_KEY`/`PluginConfigEntry`):
++
++```rust
++/// Read the `plugins` enable-map from config.yaml as path -> enabled.
++pub(crate) fn plugin_enabled_map(config: &Config) -> HashMap<String, bool> {
++    let entries: HashMap<String, PluginConfigEntry> =
++        config.get_param(PLUGINS_CONFIG_KEY).unwrap_or_default();
++    entries.into_iter().map(|(k, v)| (k, v.enabled)).collect()
++}
++```
++
++- [ ] **Step 4: mod.rs — struct + functions**
++
++```rust
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct InstalledPlugin {
++    pub name: String,
++    pub version: String,
++    pub source: String,
++    pub enabled: bool,
++    pub auto_update: bool,
++    pub updatable: bool,
++}
++
++pub fn list_installed_plugins() -> Vec<InstalledPlugin> {
++    list_installed_plugins_at_root(&plugin_install_dir(), crate::config::Config::global())
++}
++
++fn list_installed_plugins_at_root(root: &Path, config: &crate::config::Config) -> Vec<InstalledPlugin> {
++    let enabled_map = crate::plugins::discovery::plugin_enabled_map(config);
++    let entries = match fs::read_dir(root) {
++        Ok(e) => e,
++        Err(_) => return Vec::new(),
++    };
++    let mut out = Vec::new();
++    for entry in entries.flatten() {
++        let dir = entry.path();
++        if !dir.is_dir() { continue; }
++        let name = match dir.file_name().and_then(|n| n.to_str()) {
++            Some(n) => n.to_string(),
++            None => continue,
++        };
++        let version = formats::open_plugins::read_manifest(&dir, "")
++            .ok()
++            .and_then(|m| m.version)
++            .unwrap_or_else(|| "unknown".to_string());
++        let (source, auto_update, updatable) = match read_install_metadata(&dir) {
++            Ok(m) => (m.source, m.auto_update, m.source_type == "git"),
++            Err(_) => (String::new(), false, false),
++        };
++        let enabled = enabled_map
++            .get(&dir.to_string_lossy().to_string())
++            .copied()
++            .unwrap_or(true);
++        out.push(InstalledPlugin { name, version, source, enabled, auto_update, updatable });
++    }
++    out.sort_by(|a, b| a.name.cmp(&b.name));
++    out
++}
++```
++
++- [ ] **Step 5: Run — passes** — `cargo test -p goose --lib plugins::tests::lists_installed_plugins_with_state` → PASS. Then `cargo fmt` + `cargo clippy -p goose -- -D warnings`.
++
++- [ ] **Step 6: Commit**
++
++```bash
++git add crates/goose/src/plugins/mod.rs crates/goose/src/plugins/discovery.rs
++git commit -m "feat(plugins): list_installed_plugins with enabled/updatable state"
++```
++
++---
++
++### Task 2: Rust core — `set_plugin_enabled()`
++
++**Files:**
++- Modify: `crates/goose/src/plugins/discovery.rs` (path-keyed setter)
++- Modify: `crates/goose/src/plugins/mod.rs` (name → path wrapper)
++- Test: `crates/goose/src/plugins/discovery.rs` (`#[cfg(test)]`)
++
++**Interfaces:**
++- Produces: `discovery::set_plugin_enabled_path(&Config, path_key: &str, enabled: bool) -> anyhow::Result<()>`; `pub fn set_plugin_enabled(name: &str, enabled: bool) -> anyhow::Result<()>` (resolves `plugin_install_dir().join(name)` as the key).
++
++- [ ] **Step 1: Failing test** (`discovery.rs` tests)
++
++```rust
++#[test]
++fn set_plugin_enabled_path_roundtrip() {
++    let tmp = tempfile::tempdir().unwrap();
++    let cfg = Config::new(tmp.path().join("config.yaml"), "k").unwrap();
++    set_plugin_enabled_path(&cfg, "/x/plugins/demo", false).unwrap();
++    assert_eq!(plugin_enabled_map(&cfg).get("/x/plugins/demo"), Some(&false));
++    set_plugin_enabled_path(&cfg, "/x/plugins/demo", true).unwrap();
++    assert_eq!(plugin_enabled_map(&cfg).get("/x/plugins/demo"), Some(&true));
++}
++```
++
++- [ ] **Step 2: Run — fails** — `cargo test -p goose --lib plugins::discovery::tests::set_plugin_enabled_path_roundtrip` → FAIL.
++
++- [ ] **Step 3: discovery.rs — setter**
++
++```rust
++pub(crate) fn set_plugin_enabled_path(config: &Config, path_key: &str, enabled: bool) -> anyhow::Result<()> {
++    let mut entries: HashMap<String, PluginConfigEntry> =
++        config.get_param(PLUGINS_CONFIG_KEY).unwrap_or_default();
++    entries.insert(path_key.to_string(), PluginConfigEntry { enabled });
++    config.set_param(PLUGINS_CONFIG_KEY, serde_json::to_value(&entries)?)?;
++    Ok(())
++}
++```
++
++- [ ] **Step 4: mod.rs — name wrapper**
++
++```rust
++pub fn set_plugin_enabled(name: &str, enabled: bool) -> Result<()> {
++    let path = plugin_install_dir().join(name);
++    crate::plugins::discovery::set_plugin_enabled_path(
++        crate::config::Config::global(),
++        &path.to_string_lossy(),
++        enabled,
++    )
++}
++```
++
++- [ ] **Step 5: Run — passes** — same command → PASS; `cargo fmt`; `cargo clippy -p goose -- -D warnings`.
++
++- [ ] **Step 6: Commit**
++
++```bash
++git add crates/goose/src/plugins/discovery.rs crates/goose/src/plugins/mod.rs
++git commit -m "feat(plugins): set_plugin_enabled via config.yaml plugins map"
++```
++
++---
++
++### Task 3: ACP wire types
++
++**Files:**
++- Modify: `crates/goose-sdk-types/src/custom_requests.rs` (append the block below near the extension requests)
++
++**Interfaces:**
++- Produces (consumed by Tasks 4/5/6): the request/response structs below and the info structs `MarketplaceSourceInfo`, `CatalogPluginInfo`, `InstalledPluginInfo`, `InstalledPluginResult`.
++
++- [ ] **Step 1: Add the types** (verbatim; note `EmptyResponse` already exists in this file)
++
++```rust
++// ---- Marketplace + plugin management (Desktop Plan 2) ----
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
++#[serde(rename_all = "camelCase")]
++pub struct MarketplaceSourceInfo {
++    pub name: String,
++    pub kind: String,       // "claude" | "codex"
++    pub location: String,
++    pub enabled: bool,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
++#[serde(rename_all = "camelCase")]
++pub struct CatalogPluginInfo {
++    pub name: String,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub description: Option<String>,
++    pub installable: bool,
++    pub source_kind: String, // "relative-path" | "git-subdir" | "git" | "unsupported"
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
++#[serde(rename_all = "camelCase")]
++pub struct InstalledPluginInfo {
++    pub name: String,
++    pub version: String,
++    pub source: String,
++    pub enabled: bool,
++    pub auto_update: bool,
++    pub updatable: bool,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
++#[serde(rename_all = "camelCase")]
++pub struct InstalledPluginResult {
++    pub name: String,
++    pub version: String,
++    pub format: String,
++    pub source: String,
++    pub skills: Vec<String>,
++    pub has_hooks: bool,
++    pub has_mcp: bool,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/marketplace/list", response = ListMarketplacesResponse)]
++pub struct ListMarketplacesRequest {}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct ListMarketplacesResponse {
++    pub marketplaces: Vec<MarketplaceSourceInfo>,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/marketplace/add", response = EmptyResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct AddMarketplaceRequest {
++    pub name: String,
++    pub kind: String,
++    pub location: String,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/marketplace/remove", response = EmptyResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct RemoveMarketplaceRequest {
++    pub name: String,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/marketplace/browse", response = BrowseMarketplaceResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct BrowseMarketplaceRequest {
++    pub name: String,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct BrowseMarketplaceResponse {
++    pub plugins: Vec<CatalogPluginInfo>,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/marketplace/install", response = InstalledPluginResult)]
++#[serde(rename_all = "camelCase")]
++pub struct InstallMarketplacePluginRequest {
++    pub marketplace: String,
++    pub plugin: String,
++    #[serde(default)]
++    pub auto_update: bool,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/plugins/list", response = ListInstalledPluginsResponse)]
++pub struct ListInstalledPluginsRequest {}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct ListInstalledPluginsResponse {
++    pub plugins: Vec<InstalledPluginInfo>,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/plugins/set-enabled", response = EmptyResponse)]
++#[serde(rename_all = "camelCase")]
++pub struct SetPluginEnabledRequest {
++    pub name: String,
++    pub enabled: bool,
++}
++
++#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
++#[request(method = "_goose/unstable/plugins/update", response = InstalledPluginResult)]
++pub struct UpdatePluginRequest {
++    pub name: String,
++}
++```
++
++- [ ] **Step 2: Compiles** — `cargo build -p goose-sdk-types` → success. `cargo fmt`.
++
++- [ ] **Step 3: Commit**
++
++```bash
++git add crates/goose-sdk-types/src/custom_requests.rs
++git commit -m "feat(acp-types): marketplace + plugin-management request/response types"
++```
++
++---
++
++### Task 4: ACP handlers — marketplace/* + dispatch
++
++**Files:**
++- Create: `crates/goose/src/acp/server/marketplace.rs`
++- Modify: `crates/goose/src/acp/server.rs` (add `mod marketplace;` near `mod extensions;` at line ~92)
++- Modify: `crates/goose/src/acp/server/custom_dispatch.rs` (add dispatch arms)
++- Test: none new (thin wrappers over Task-1/2 + Plan-1 code, already tested); verified by compile.
++
++**Interfaces:**
++- Consumes: Task 3 types; `goose::marketplace::{registry, fetch, install, MarketplaceSource, MarketplaceKind, catalog::PluginSource}`; `goose::plugins::{list_installed_plugins, set_plugin_enabled, update_plugin, clone_marketplace_repo, PluginInstall, PluginInstallOptions, plugin_install_dir}`.
++- Produces: `pub(super) async fn on_marketplace_list/add/remove/browse/install(...)`.
++
++- [ ] **Step 1: `marketplace.rs` handlers**
++
++```rust
++use super::*;
++use crate::marketplace::catalog::PluginSource;
++use crate::marketplace::{MarketplaceKind, MarketplaceSource};
++
++fn parse_kind(kind: &str) -> Result<MarketplaceKind, agent_client_protocol::Error> {
++    match kind {
++        "claude" => Ok(MarketplaceKind::Claude),
++        "codex" => Ok(MarketplaceKind::Codex),
++        other => Err(agent_client_protocol::Error::invalid_params()
++            .data(format!("unknown marketplace kind '{other}'"))),
++    }
++}
++
++fn source_kind_label(s: &PluginSource) -> &'static str {
++    match s {
++        PluginSource::RelativePath(_) => "relative-path",
++        PluginSource::GitSubdir { .. } => "git-subdir",
++        PluginSource::Git { .. } => "git",
++        PluginSource::Unsupported(_) => "unsupported",
++    }
++}
++
++impl GooseAcpAgent {
++    pub(super) async fn on_marketplace_list(
++        &self,
++    ) -> Result<ListMarketplacesResponse, agent_client_protocol::Error> {
++        let list = crate::marketplace::registry::list_marketplaces().internal_err()?;
++        Ok(ListMarketplacesResponse {
++            marketplaces: list
++                .into_iter()
++                .map(|m| MarketplaceSourceInfo {
++                    name: m.name,
++                    kind: format!("{:?}", m.kind).to_lowercase(),
++                    location: m.location,
++                    enabled: m.enabled,
++                })
++                .collect(),
++        })
++    }
++
++    pub(super) async fn on_marketplace_add(
++        &self,
++        req: AddMarketplaceRequest,
++    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
++        let kind = parse_kind(&req.kind)?;
++        crate::marketplace::registry::add_marketplace(MarketplaceSource {
++            name: req.name,
++            kind,
++            location: req.location,
++            enabled: true,
++        })
++        .map_err(|e| agent_client_protocol::Error::invalid_params().data(e.to_string()))?;
++        Ok(EmptyResponse {})
++    }
++
++    pub(super) async fn on_marketplace_remove(
++        &self,
++        req: RemoveMarketplaceRequest,
++    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
++        let removed = crate::marketplace::registry::remove_marketplace(&req.name).internal_err()?;
++        if !removed {
++            return Err(agent_client_protocol::Error::invalid_params()
++                .data(format!("marketplace '{}' not found", req.name)));
++        }
++        Ok(EmptyResponse {})
++    }
++
++    pub(super) async fn on_marketplace_browse(
++        &self,
++        req: BrowseMarketplaceRequest,
++    ) -> Result<BrowseMarketplaceResponse, agent_client_protocol::Error> {
++        let src = crate::marketplace::registry::list_marketplaces()
++            .internal_err()?
++            .into_iter()
++            .find(|m| m.name == req.name)
++            .ok_or_else(|| {
++                agent_client_protocol::Error::invalid_params()
++                    .data(format!("marketplace '{}' not found", req.name))
++            })?;
++        let plugins = crate::marketplace::fetch::fetch_catalog(&src)
++            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
++        Ok(BrowseMarketplaceResponse {
++            plugins: plugins
++                .into_iter()
++                .map(|p| CatalogPluginInfo {
++                    installable: !matches!(p.source, PluginSource::Unsupported(_)),
++                    source_kind: source_kind_label(&p.source).to_string(),
++                    name: p.name,
++                    description: p.description,
++                })
++                .collect(),
++        })
++    }
++
++    pub(super) async fn on_marketplace_install(
++        &self,
++        req: InstallMarketplacePluginRequest,
++    ) -> Result<InstalledPluginResult, agent_client_protocol::Error> {
++        let src = crate::marketplace::registry::list_marketplaces()
++            .internal_err()?
++            .into_iter()
++            .find(|m| m.name == req.marketplace)
++            .ok_or_else(|| {
++                agent_client_protocol::Error::invalid_params()
++                    .data(format!("marketplace '{}' not found", req.marketplace))
++            })?;
++        let tmp = tempfile::tempdir()
++            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
++        crate::plugins::clone_marketplace_repo(&src.location, tmp.path())
++            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
++        let entry = crate::marketplace::fetch::fetch_catalog_from_dir(&src, tmp.path())
++            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?
++            .into_iter()
++            .find(|p| p.name == req.plugin)
++            .ok_or_else(|| {
++                agent_client_protocol::Error::invalid_params().data(format!(
++                    "plugin '{}' not found in marketplace '{}'",
++                    req.plugin, req.marketplace
++                ))
++            })?;
++        let install = crate::marketplace::install::install_catalog_plugin(
++            &entry,
++            tmp.path(),
++            crate::plugins::PluginInstallOptions { auto_update: req.auto_update },
++        )
++        .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
++        Ok(install_to_result(install))
++    }
++}
++
++fn install_to_result(install: crate::plugins::PluginInstall) -> InstalledPluginResult {
++    let has_hooks = install.directory.join("hooks/hooks.json").is_file();
++    let has_mcp = install.directory.join(".mcp.json").is_file();
++    InstalledPluginResult {
++        name: install.name,
++        version: install.version,
++        format: install.format.to_string(),
++        source: install.source,
++        skills: install.skills.into_iter().map(|s| s.name).collect(),
++        has_hooks,
++        has_mcp,
++    }
++}
++```
++
++> If the `.internal_err()` extension trait is not in scope via `use super::*`, replace `.internal_err()?` with `.map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?` (confirm by reading how `extensions.rs` maps `anyhow`/`Result` errors).
++
++- [ ] **Step 2: Wire the module** — in `crates/goose/src/acp/server.rs`, add next to `mod extensions;`:
++
++```rust
++mod marketplace;
++```
++
++- [ ] **Step 3: Dispatch arms** — in `crates/goose/src/acp/server/custom_dispatch.rs`, inside the `#[custom_methods] impl GooseAcpAgent` block (next to the extension arms):
++
++```rust
++    #[custom_method(ListMarketplacesRequest)]
++    async fn dispatch_marketplace_list(&self) -> Result<ListMarketplacesResponse, agent_client_protocol::Error> {
++        self.on_marketplace_list().await
++    }
++    #[custom_method(AddMarketplaceRequest)]
++    async fn dispatch_marketplace_add(&self, req: AddMarketplaceRequest) -> Result<EmptyResponse, agent_client_protocol::Error> {
++        self.on_marketplace_add(req).await
++    }
++    #[custom_method(RemoveMarketplaceRequest)]
++    async fn dispatch_marketplace_remove(&self, req: RemoveMarketplaceRequest) -> Result<EmptyResponse, agent_client_protocol::Error> {
++        self.on_marketplace_remove(req).await
++    }
++    #[custom_method(BrowseMarketplaceRequest)]
++    async fn dispatch_marketplace_browse(&self, req: BrowseMarketplaceRequest) -> Result<BrowseMarketplaceResponse, agent_client_protocol::Error> {
++        self.on_marketplace_browse(req).await
++    }
++    #[custom_method(InstallMarketplacePluginRequest)]
++    async fn dispatch_marketplace_install(&self, req: InstallMarketplacePluginRequest) -> Result<InstalledPluginResult, agent_client_protocol::Error> {
++        self.on_marketplace_install(req).await
++    }
++```
++
++- [ ] **Step 4: Compile + clippy**
++
++Run: `cargo build -p goose --lib` then `cargo clippy -p goose -- -D warnings`
++Expected: success, no warnings. (If `on_marketplace_install` `tmp` drops too early, note the tempdir is bound to `tmp` for the whole fn — it is.)
++
++- [ ] **Step 5: Commit**
++
++```bash
++git add crates/goose/src/acp/server/marketplace.rs crates/goose/src/acp/server.rs crates/goose/src/acp/server/custom_dispatch.rs
++git commit -m "feat(acp): marketplace list/add/remove/browse/install handlers"
++```
++
++---
++
++### Task 5: ACP handlers — plugins/* + dispatch
++
++**Files:**
++- Modify: `crates/goose/src/acp/server/marketplace.rs` (add plugin-management handlers)
++- Modify: `crates/goose/src/acp/server/custom_dispatch.rs` (dispatch arms)
++
++**Interfaces:**
++- Consumes: Task 1/2 (`list_installed_plugins`, `set_plugin_enabled`), `goose::plugins::update_plugin`, `install_to_result` (Task 4).
++- Produces: `on_plugins_list/set_enabled/update`.
++
++- [ ] **Step 1: Handlers** (append into the `impl GooseAcpAgent` in `marketplace.rs`)
++
++```rust
++impl GooseAcpAgent {
++    pub(super) async fn on_plugins_list(
++        &self,
++    ) -> Result<ListInstalledPluginsResponse, agent_client_protocol::Error> {
++        let plugins = crate::plugins::list_installed_plugins()
++            .into_iter()
++            .map(|p| InstalledPluginInfo {
++                name: p.name,
++                version: p.version,
++                source: p.source,
++                enabled: p.enabled,
++                auto_update: p.auto_update,
++                updatable: p.updatable,
++            })
++            .collect();
++        Ok(ListInstalledPluginsResponse { plugins })
++    }
++
++    pub(super) async fn on_plugins_set_enabled(
++        &self,
++        req: SetPluginEnabledRequest,
++    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
++        crate::plugins::set_plugin_enabled(&req.name, req.enabled)
++            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
++        Ok(EmptyResponse {})
++    }
++
++    pub(super) async fn on_plugins_update(
++        &self,
++        req: UpdatePluginRequest,
++    ) -> Result<InstalledPluginResult, agent_client_protocol::Error> {
++        let install = crate::plugins::update_plugin(&req.name)
++            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
++        Ok(install_to_result(install))
++    }
++}
++```
++
++- [ ] **Step 2: Dispatch arms** (custom_dispatch.rs)
++
++```rust
++    #[custom_method(ListInstalledPluginsRequest)]
++    async fn dispatch_plugins_list(&self) -> Result<ListInstalledPluginsResponse, agent_client_protocol::Error> {
++        self.on_plugins_list().await
++    }
++    #[custom_method(SetPluginEnabledRequest)]
++    async fn dispatch_plugins_set_enabled(&self, req: SetPluginEnabledRequest) -> Result<EmptyResponse, agent_client_protocol::Error> {
++        self.on_plugins_set_enabled(req).await
++    }
++    #[custom_method(UpdatePluginRequest)]
++    async fn dispatch_plugins_update(&self, req: UpdatePluginRequest) -> Result<InstalledPluginResult, agent_client_protocol::Error> {
++        self.on_plugins_update(req).await
++    }
++```
++
++- [ ] **Step 3: Compile + clippy** — `cargo build -p goose --lib` + `cargo clippy -p goose -- -D warnings` → clean.
++
++- [ ] **Step 4: Commit**
++
++```bash
++git add crates/goose/src/acp/server/marketplace.rs crates/goose/src/acp/server/custom_dispatch.rs
++git commit -m "feat(acp): plugins list/set-enabled/update handlers"
++```
++
++---
++
++### Task 6: Regenerate ACP schema + SDK
++
++**Files:**
++- Modify (generated): `crates/goose/acp-schema.json`, `crates/goose/acp-meta.json`, `ui/sdk/src/generated/*`
++
++- [ ] **Step 1: Generate** — from repo root, with the user-local cmake on PATH (needed by the schema binary's feature set) and Node available:
++
++```bash
++export PATH="$HOME/.local/bin:$PATH"
++just generate-acp-types
++```
++
++- [ ] **Step 2: Verify the new client methods exist**
++
++Run: `grep -REn "marketplaceList_unstable|marketplaceInstall_unstable|pluginsList_unstable|pluginsSetEnabled_unstable" ui/sdk/src/generated`
++Expected: matches present (camelCased from `_goose/unstable/marketplace/list` → `marketplaceList_unstable`, `.../plugins/set-enabled` → `pluginsSetEnabled_unstable`).
++
++- [ ] **Step 3: check-acp-schema is clean after commit** — `just check-acp-schema` → "up-to-date" (run after staging).
++
++- [ ] **Step 4: Commit generated files**
++
++```bash
++git add crates/goose/acp-schema.json crates/goose/acp-meta.json ui/sdk/src/generated
++git commit -m "chore(acp): regenerate schema + SDK for marketplace/plugins methods"
++```
++
++---
++
++### Task 7: TypeScript ACP wrappers
++
++**Files:**
++- Create: `ui/desktop/src/acp/marketplace.ts`
++- Test: typecheck via `pnpm -C ui/desktop run lint:check` (tsc + eslint + i18n:check)
++
++**Interfaces:**
++- Consumes: generated `client.goose.<method>_unstable` from Task 6; `getAcpClient` from `./acpConnection`.
++- Produces (consumed by Plan 2b): `listMarketplaces`, `addMarketplace`, `removeMarketplace`, `browseMarketplace`, `installMarketplacePlugin`, `listInstalledPlugins`, `setPluginEnabled`, `updatePlugin` and the TS types re-exported from `@aaif/goose-sdk`.
++
++- [ ] **Step 1: Wrappers** (mirror `ui/desktop/src/acp/extensions.ts`; use the EXACT generated method names verified in Task 6 Step 2 — adjust casing if the generator differs)
++
++```ts
++import { getAcpClient } from './acpConnection';
++import type {
++  MarketplaceSourceInfo,
++  CatalogPluginInfo,
++  InstalledPluginInfo,
++  InstalledPluginResult,
++} from '@aaif/goose-sdk';
++
++export async function listMarketplaces(): Promise<MarketplaceSourceInfo[]> {
++  const client = await getAcpClient();
++  const res = await client.goose.marketplaceList_unstable({});
++  return res.marketplaces;
++}
++
++export async function addMarketplace(name: string, kind: string, location: string): Promise<void> {
++  const client = await getAcpClient();
++  await client.goose.marketplaceAdd_unstable({ name, kind, location });
++}
++
++export async function removeMarketplace(name: string): Promise<void> {
++  const client = await getAcpClient();
++  await client.goose.marketplaceRemove_unstable({ name });
++}
++
++export async function browseMarketplace(name: string): Promise<CatalogPluginInfo[]> {
++  const client = await getAcpClient();
++  const res = await client.goose.marketplaceBrowse_unstable({ name });
++  return res.plugins;
++}
++
++export async function installMarketplacePlugin(
++  marketplace: string,
++  plugin: string,
++  autoUpdate = false
++): Promise<InstalledPluginResult> {
++  const client = await getAcpClient();
++  return await client.goose.marketplaceInstall_unstable({ marketplace, plugin, autoUpdate });
++}
++
++export async function listInstalledPlugins(): Promise<InstalledPluginInfo[]> {
++  const client = await getAcpClient();
++  const res = await client.goose.pluginsList_unstable({});
++  return res.plugins;
++}
++
++export async function setPluginEnabled(name: string, enabled: boolean): Promise<void> {
++  const client = await getAcpClient();
++  await client.goose.pluginsSetEnabled_unstable({ name, enabled });
++}
++
++export async function updatePlugin(name: string): Promise<InstalledPluginResult> {
++  const client = await getAcpClient();
++  return await client.goose.pluginsUpdate_unstable({ name });
++}
++```
++
++- [ ] **Step 2: Typecheck**
++
++Run: `pnpm -C ui/desktop run lint:check`
++Expected: passes (tsc finds the generated types + client methods; no eslint/i18n errors — this file adds no user-facing strings).
++
++- [ ] **Step 3: Commit**
++
++```bash
++git add ui/desktop/src/acp/marketplace.ts
++git commit -m "feat(desktop): ACP TS wrappers for marketplace + plugin management"
++```
++
++---
++
++## Self-Review
++
++**Spec coverage (backend portion):** sources CRUD → Task 4 (list/add/remove) ✅; browse → Task 4 ✅; install (clone-once + trust fields) → Task 4 (`InstalledPluginResult` carries skills/has_hooks/has_mcp/source) ✅; installed list/enable-disable/update → Tasks 1/2/5 ✅; ACP transport → Tasks 3–6 ✅; TS callable → Task 7 ✅. **UI itself (views, i18n, tests) → Plan 2b.**
++
++**Placeholder scan:** none — every code step is complete. The two guarded notes (`.internal_err()` availability; generated method-name casing) instruct verification against a named real file, not blanks.
++
++**Type consistency:** `InstalledPlugin` (Task 1) → `InstalledPluginInfo` (Task 3) mapping in Task 5 fields match; `PluginInstall` → `install_to_result` → `InstalledPluginResult` fields match Task 3; `PluginSource` variants in `source_kind_label`/`installable` match Plan-1 `catalog.rs`; method strings ↔ generated names verified in Task 6.
++
++**Open verification points (baked into task steps):** `.internal_err()` trait scope (Task 4 note); exact generated client method casing (Task 6 Step 2 → Task 7); `Config::new` test-constructor signature (Tasks 1/2, precedented in `discovery.rs`).
++
++**Follow-up:** Plan 2b (React `MarketplacesView` + `useMarketplace` + routing + i18n + vitest/Playwright) — write it against the generated SDK **after** 2a lands.
+diff --git a/docs/superpowers/specs/2026-07-05-marketplace-desktop-ui-design.md b/docs/superpowers/specs/2026-07-05-marketplace-desktop-ui-design.md
+new file mode 100644
+index 000000000..59e182769
+--- /dev/null
++++ b/docs/superpowers/specs/2026-07-05-marketplace-desktop-ui-design.md
+@@ -0,0 +1,80 @@
++# Design: Desktop-„Marketplaces"-UI (Folge-Plan 2)
++
++- **Datum:** 2026-07-05
++- **Branch:** `feature/marketplace-desktop-ui` (basiert auf `feature/marketplace-federation` / Plan 1)
++- **Status:** Design (zur Review)
++
++## Problem
++
++Der Marketplace-Kern (Registry, Katalog-Provider Claude/Codex, Fetch, Install-Bridge) existiert aus Plan 1, ist aber **nur über die CLI** bedienbar. Die goose-Desktop-App (electron/React) bietet weder eine Ansicht noch einen Backend-Seam dafür. Ziel: eine Desktop-UI zum **Verwalten von Marketplaces, Browsen der Kataloge, Installieren ausgewählter Plugins** sowie zum **Verwalten installierter Plugins** (aktivieren/deaktivieren/updaten).
++
++## Architektur-Entscheidung: ACP (nicht REST)
++
++Das Desktop-Frontend konsumiert Config/Extensions **nicht** über REST (`crates/goose-server/.../config_management.rs` → `openapi.json`); `ui/desktop/src/api` existiert nicht — der REST-Weg ist für diesen Bereich toter Code. Das lebende Muster ist **ACP-JSON-RPC**. Wir folgen exakt der Extensions-Triade:
++
++`custom_requests.rs` (Request/Response-Typen) → ACP-Handler (`crates/goose/src/acp/server/`) → `custom_dispatch.rs` → `just generate-acp-types` → `ui/sdk/src/generated` + `GooseExtClient` → `ui/desktop/src/acp/*.ts` → React-Hook/Context → View.
++
++## Scope (v1, „voll")
++
++**In Scope:** Quellen add/list/remove · Katalog browsen (installierbar vs. `Unsupported`) · Mehrfach-Installation mit Trust-Hinweis · installierte Plugins list/enable/disable/update.
++**Non-Goals:** Marketplace-Hosting/Publishing; Import von Slash-Commands/Subagenten (Plan-1-Non-Goal bleibt); Windows-spezifische Sonderpfade; das Desktop-„agent extensions"-Modell (Plugins sind global installiert, nicht per Session).
++
++## Komponenten
++
++### 1. Rust-Kern — additive Funktionen in `crates/goose/src/plugins/`
++- `list_installed_plugins() -> Vec<InstalledPlugin>` mit
++  `InstalledPlugin { name: String, version: String, source: String, enabled: bool, auto_update: bool, updatable: bool }`.
++  Quelle: Plugin-Verzeichnisse aus `plugin_install_dir()` + `project_plugin_install_dir` (analog `discovery`), Status aus der `config.yaml`-`plugins`-Map (`filter_by_config`), Metadaten aus `.goose-plugin-install.json` (`source`, `auto_update`, `source_type=="git"` ⇒ `updatable`).
++- `set_plugin_enabled(name: &str, enabled: bool) -> Result<()>`: schreibt die **schreibbare** `config.yaml`-`plugins`-Map (`Config::set_param`/`update_param`), **nicht** `settings.json` (read-only). Ergänzt die vorhandene `filter_by_config`-Logik in `discovery.rs`.
++- Wiederverwenden ohne Änderung: `update_plugin`, `marketplace::registry::{list,add,remove}_marketplace`, `marketplace::fetch::fetch_catalog`, `marketplace::install::install_catalog_plugin`.
++
++### 2. ACP-Methoden
++Neue Request/Response-Typen in `crates/goose-sdk-types/src/custom_requests.rs` (Muster: `#[derive(… JsonRpcRequest)] #[request(method="…", response=…)]`), Handler in neuem `crates/goose/src/acp/server/marketplace.rs`, Registrierung in `custom_dispatch.rs`:
++
++| Methode | Kern-Aufruf | Anmerkung |
++|---|---|---|
++| `_goose/unstable/marketplace/list` | `registry::list_marketplaces` | schnell |
++| `_goose/unstable/marketplace/add` | `registry::add_marketplace` | schnell |
++| `_goose/unstable/marketplace/remove` | `registry::remove_marketplace` | schnell |
++| `_goose/unstable/marketplace/browse` | `fetch::fetch_catalog` | **Netzwerk/Git (langsam)** |
++| `_goose/unstable/marketplace/install` | einmal klonen + `install::install_catalog_plugin` je Auswahl | **Netzwerk/Git**, liefert je-Plugin-Ergebnis + importierte Komponenten (Skills/Hooks/MCP) für den Trust-Hinweis |
++| `_goose/unstable/plugins/list` | `list_installed_plugins` | schnell |
++| `_goose/unstable/plugins/set-enabled` | `set_plugin_enabled` | schnell |
++| `_goose/unstable/plugins/update` | `update_plugin` | **Netzwerk/Git** |
++
++`install` bekommt Marketplace-Name + Plugin-Namen; der Handler klont die Marketplace-Quelle **einmal** und installiert daraus (wie CLI-`handle_install`).
++
++### 3. Codegen
++`just generate-acp-schema` + `just generate-acp-types` → generierte Dateien in `crates/goose/acp-{schema,meta}.json` und `ui/sdk/src/generated/*` + `GooseExtClient`-Methoden. Generierte Dateien **mitcommitten** (CI `check-acp-schema` erzwingt Aktualität).
++
++### 4. TS-Layer
++- `ui/desktop/src/acp/marketplace.ts`: dünne Wrapper (`getAcpClient()` → `client.goose.marketplace…_unstable(...)`), Typ-Mapping SDK↔Desktop analog `acp/extensions.ts`.
++- Hook `useMarketplace` (eigener Context oder Erweiterung, analog `useConfig`): State `sources`, `catalog`, `installedPlugins`; Aktionen `addSource/removeSource/browse/install/refreshInstalled/setPluginEnabled/updatePlugin` mit Lade-/Fehler-Flags.
++
++### 5. UI — top-level „Marketplaces"-View
++Registrierung wie `ExtensionsView`: `View`-Union in `utils/navigationUtils.ts`, Route in `App.tsx`. Komponente `components/marketplaces/MarketplacesView.tsx` in `MainPanelLayout`, mit drei Sektionen:
++- **Sources**: Add-Formular (Name, Git-URL/Location, Kind = Claude|Codex) + Liste + Remove.
++- **Browse**: Quelle wählen → `browse` → Katalogliste (installierbar vs. `Unsupported` markiert, Beschreibung) → Mehrfachauswahl (Checkboxen) → **Install** mit Fortschritt; **Trust-Dialog** vor/aus dem Install zeigt Quelle + Hooks/MCP-Präsenz (Parität zu CLI-FIX C).
++- **Installed**: Liste (`list_installed_plugins`) mit Enable/Disable-Toggle (`set-enabled`) + Update-Button (`update`, nur wenn `updatable`).
++- Alle Strings via `defineMessages`/i18n (CI erzwingt `i18n:check`).
++
++## Datenfluss
++UI-Aktion → `useMarketplace` → `acp/marketplace.ts` → `GooseExtClient` (ACP) → ACP-Handler → `goose::marketplace`/`goose::plugins` → `config.yaml` / Dateisystem / Git.
++
++## Fehlerbehandlung & UX
++- Langsame Ops (`browse/install/update`) mit Lade-/Fortschritts-States; Buttons währenddessen deaktiviert.
++- `install` einer Mehrfachauswahl: je Plugin Erfolg/Fehler sammeln, Teilfehler klar anzeigen (nicht alles abbrechen).
++- Nicht erreichbare/ungültige Quelle → Fehlermeldung pro Quelle, andere Sektionen bleiben nutzbar.
++- Trust: vor Aktivierung Quelle + Komponenten (Skills/Hooks/MCP) sichtbar machen; Hooks führen lokale Kommandos aus (Warnung).
++- ACP-Fehler → verständliche Toasts; keine rohen JSON-RPC-Fehler.
++
++## Teststrategie
++- **Rust-Unit:** `list_installed_plugins` (Fixture-Plugin-Dirs + config.yaml-Status) und `set_plugin_enabled` (Roundtrip in isolierter `Config`).
++- **Vitest (Komponenten, ACP-Client gemockt):** Sources-Form (add/validate/remove), Browse-Auswahl+Install (inkl. Unsupported disabled, Trust-Dialog), Installed-Toggle/Update.
++- **Playwright-E2E** (`ui/desktop/tests/e2e`): Flow add→browse→install gegen eine **lokale Git-Fixture-Marketplace**; benötigt laufendes `goosed` — falls im CI-Rahmen nicht stabil, als **manuelles Runbook** dokumentieren.
++- Lint/Typecheck: `pnpm lint:check` (tsc + eslint `--max-warnings 0` + `i18n:check`) grün.
++
++## Offene Punkte / spätere Phasen
++1. Auto-Update-Umschaltung pro Plugin in der UI (Kern hat `auto_update`-Flag; v1 zeigt es nur an).
++2. Fortschritts-Streaming für lange Git-Ops (v1: einfacher Spinner/Busy-State statt echtem Progress).
++3. Konflikt-UI bei gleichnamigen Plugins über mehrere Marketplaces (Plan-1-Non-Goal, weiterhin offen).
+diff --git a/ui/desktop/src/acp/marketplace.ts b/ui/desktop/src/acp/marketplace.ts
+new file mode 100644
+index 000000000..c3d0a607a
+--- /dev/null
++++ b/ui/desktop/src/acp/marketplace.ts
+@@ -0,0 +1,58 @@
++import { getAcpClient } from './acpConnection';
++import type {
++  MarketplaceSourceInfo,
++  CatalogPluginInfo,
++  InstalledPluginInfo,
++  InstalledPluginResult_unstable,
++} from '@aaif/goose-sdk';
++
++export async function listMarketplaces(): Promise<MarketplaceSourceInfo[]> {
++  const client = await getAcpClient();
++  const res = await client.goose.marketplaceList_unstable({});
++  return res.marketplaces;
++}
++
++export async function addMarketplace(
++  name: string,
++  kind: string,
++  location: string
++): Promise<void> {
++  const client = await getAcpClient();
++  await client.goose.marketplaceAdd_unstable({ name, kind, location });
++}
++
++export async function removeMarketplace(name: string): Promise<void> {
++  const client = await getAcpClient();
++  await client.goose.marketplaceRemove_unstable({ name });
++}
++
++export async function browseMarketplace(name: string): Promise<CatalogPluginInfo[]> {
++  const client = await getAcpClient();
++  const res = await client.goose.marketplaceBrowse_unstable({ name });
++  return res.plugins;
++}
++
++export async function installMarketplacePlugin(
++  marketplace: string,
++  plugin: string,
++  autoUpdate = false
++): Promise<InstalledPluginResult_unstable> {
++  const client = await getAcpClient();
++  return await client.goose.marketplaceInstall_unstable({ marketplace, plugin, autoUpdate });
++}
++
++export async function listInstalledPlugins(): Promise<InstalledPluginInfo[]> {
++  const client = await getAcpClient();
++  const res = await client.goose.pluginsList_unstable({});
++  return res.plugins;
++}
++
++export async function setPluginEnabled(name: string, enabled: boolean): Promise<void> {
++  const client = await getAcpClient();
++  await client.goose.pluginsSetEnabled_unstable({ name, enabled });
++}
++
++export async function updatePlugin(name: string): Promise<InstalledPluginResult_unstable> {
++  const client = await getAcpClient();
++  return await client.goose.pluginsUpdate_unstable({ name });
++}
+diff --git a/ui/sdk/src/generated/client.gen.ts b/ui/sdk/src/generated/client.gen.ts
+index 0d8ac11a2..83c9cba13 100644
+--- a/ui/sdk/src/generated/client.gen.ts
++++ b/ui/sdk/src/generated/client.gen.ts
+@@ -3,28 +3,31 @@
+ export interface ExtMethodProvider {
+   extMethod(
+     method: string,
+     params: Record<string, unknown>,
+   ): Promise<Record<string, unknown>>;
+ }
+ 
+ import type { Client } from "@agentclientprotocol/sdk";
+ import type {
+   AddConfigExtensionRequest_unstable,
++  AddMarketplaceRequest_unstable,
+   AddSessionExtensionRequest_unstable,
+   AppsExportRequest_unstable,
+   AppsExportResponse_unstable,
+   AppsImportRequest_unstable,
+   AppsImportResponse_unstable,
+   AppsListRequest_unstable,
+   AppsListResponse_unstable,
+   ArchiveSessionRequest_unstable,
++  BrowseMarketplaceRequest_unstable,
++  BrowseMarketplaceResponse_unstable,
+   CanonicalModelInfoRequest_unstable,
+   CanonicalModelInfoResponse_unstable,
+   ConfigReadAllRequest_unstable,
+   ConfigReadAllResponse_unstable,
+   ConfigReadRequest_unstable,
+   ConfigReadResponse_unstable,
+   ConfigRemoveRequest_unstable,
+   ConfigUpsertRequest_unstable,
+   CreateScheduleRequest_unstable,
+   CreateScheduleResponse_unstable,
+@@ -84,24 +87,30 @@ import type {
+   GetToolsResponse_unstable,
+   GooseSessionNotification_unstable,
+   GooseToolCallRequest_unstable,
+   GooseToolCallResponse_unstable,
+   ImportSessionRequest_unstable,
+   ImportSessionResponse_unstable,
+   ImportSourcesRequest_unstable,
+   ImportSourcesResponse_unstable,
+   InspectRunningJobRequest_unstable,
+   InspectRunningJobResponse_unstable,
++  InstallMarketplacePluginRequest_unstable,
++  InstalledPluginResult_unstable,
+   KillRunningJobRequest_unstable,
+   KillRunningJobResponse_unstable,
+   ListAgentMentionsRequest_unstable,
+   ListAgentMentionsResponse_unstable,
++  ListInstalledPluginsRequest_unstable,
++  ListInstalledPluginsResponse_unstable,
++  ListMarketplacesRequest_unstable,
++  ListMarketplacesResponse_unstable,
+   ListPromptsRequest_unstable,
+   ListPromptsResponse_unstable,
+   ListProvidersRequest_unstable,
+   ListProvidersResponse_unstable,
+   ListRecipesRequest_unstable,
+   ListRecipesResponse_unstable,
+   ListScheduleSessionsRequest_unstable,
+   ListScheduleSessionsResponse_unstable,
+   ListSchedulesRequest_unstable,
+   ListSchedulesResponse_unstable,
+@@ -159,55 +168,59 @@ import type {
+   ProviderSupportedModelsListRequest_unstable,
+   ProviderSupportedModelsListResponse_unstable,
+   ReadResourceRequest_unstable,
+   ReadResourceResponse_unstable,
+   RecipeParamsResponse_unstable,
+   RecipeToYamlRequest_unstable,
+   RecipeToYamlResponse_unstable,
+   RefreshProviderInventoryRequest_unstable,
+   RefreshProviderInventoryResponse_unstable,
+   RemoveConfigExtensionRequest_unstable,
++  RemoveMarketplaceRequest_unstable,
+   RemoveSessionExtensionRequest_unstable,
+   RenameSessionRequest_unstable,
+   RequestRecipeParams_unstable,
+   ResetPromptRequest_unstable,
+   RunScheduleNowRequest_unstable,
+   RunScheduleNowResponse_unstable,
+   SavePromptRequest_unstable,
+   SaveRecipeRequest_unstable,
+   SaveRecipeResponse_unstable,
+   ScanRecipeRequest_unstable,
+   ScanRecipeResponse_unstable,
+   ScheduleRecipeRequest_unstable,
+   SetConfigExtensionEnabledRequest_unstable,
++  SetPluginEnabledRequest_unstable,
+   SetRecipeSlashCommandRequest_unstable,
+   SetSessionSystemPromptRequest_unstable,
+   SetToolPermissionsRequest_unstable,
+   SetToolPermissionsResponse_unstable,
+   ShareSessionNostrRequest_unstable,
+   ShareSessionNostrResponse_unstable,
+   SteerSessionRequest_unstable,
+   SteerSessionResponse_unstable,
+   TruncateSessionConversationRequest_unstable,
+   UnarchiveSessionRequest_unstable,
+   UnpauseScheduleRequest_unstable,
++  UpdatePluginRequest_unstable,
+   UpdateScheduleRequest_unstable,
+   UpdateScheduleResponse_unstable,
+   UpdateSessionProjectRequest_unstable,
+   UpdateSourceRequest_unstable,
+   UpdateSourceResponse_unstable,
+   UpdateWorkingDirRequest_unstable,
+ } from './types.gen.js';
+ import {
+   zAppsExportResponse_unstable,
+   zAppsImportResponse_unstable,
+   zAppsListResponse_unstable,
++  zBrowseMarketplaceResponse_unstable,
+   zCanonicalModelInfoResponse_unstable,
+   zConfigReadAllResponse_unstable,
+   zConfigReadResponse_unstable,
+   zCreateScheduleResponse_unstable,
+   zCreateSourceResponse_unstable,
+   zCustomProviderCreateResponse_unstable,
+   zCustomProviderDeleteResponse_unstable,
+   zCustomProviderReadResponse_unstable,
+   zCustomProviderUpdateResponse_unstable,
+   zDecodeRecipeResponse_unstable,
+@@ -224,22 +237,25 @@ import {
+   zGetConfigExtensionsResponse_unstable,
+   zGetPromptResponse_unstable,
+   zGetSessionExtensionsResponse_unstable,
+   zGetSessionInfoResponse_unstable,
+   zGetToolsResponse_unstable,
+   zGooseSessionNotification_unstable,
+   zGooseToolCallResponse_unstable,
+   zImportSessionResponse_unstable,
+   zImportSourcesResponse_unstable,
+   zInspectRunningJobResponse_unstable,
++  zInstalledPluginResult_unstable,
+   zKillRunningJobResponse_unstable,
+   zListAgentMentionsResponse_unstable,
++  zListInstalledPluginsResponse_unstable,
++  zListMarketplacesResponse_unstable,
+   zListPromptsResponse_unstable,
+   zListProvidersResponse_unstable,
+   zListRecipesResponse_unstable,
+   zListScheduleSessionsResponse_unstable,
+   zListSchedulesResponse_unstable,
+   zListSlashCommandsResponse_unstable,
+   zListSourcesResponse_unstable,
+   zLocalInferenceBuiltinChatTemplatesListResponse_unstable,
+   zLocalInferenceHuggingFaceRepoVariantsResponse_unstable,
+   zLocalInferenceHuggingFaceSearchResponse_unstable,
+@@ -509,20 +525,98 @@ export class GooseExtClient {
+   ): Promise<GetSessionExtensionsResponse_unstable> {
+     const raw = await this.conn.extMethod(
+       "_goose/unstable/session/extensions/list",
+       params,
+     );
+     return zGetSessionExtensionsResponse_unstable.parse(
+       raw,
+     ) as GetSessionExtensionsResponse_unstable;
+   }
+ 
++  async marketplaceList_unstable(
++    params: ListMarketplacesRequest_unstable,
++  ): Promise<ListMarketplacesResponse_unstable> {
++    const raw = await this.conn.extMethod(
++      "_goose/unstable/marketplace/list",
++      params,
++    );
++    return zListMarketplacesResponse_unstable.parse(
++      raw,
++    ) as ListMarketplacesResponse_unstable;
++  }
++
++  async marketplaceAdd_unstable(
++    params: AddMarketplaceRequest_unstable,
++  ): Promise<void> {
++    await this.conn.extMethod("_goose/unstable/marketplace/add", params);
++  }
++
++  async marketplaceRemove_unstable(
++    params: RemoveMarketplaceRequest_unstable,
++  ): Promise<void> {
++    await this.conn.extMethod("_goose/unstable/marketplace/remove", params);
++  }
++
++  async marketplaceBrowse_unstable(
++    params: BrowseMarketplaceRequest_unstable,
++  ): Promise<BrowseMarketplaceResponse_unstable> {
++    const raw = await this.conn.extMethod(
++      "_goose/unstable/marketplace/browse",
++      params,
++    );
++    return zBrowseMarketplaceResponse_unstable.parse(
++      raw,
++    ) as BrowseMarketplaceResponse_unstable;
++  }
++
++  async marketplaceInstall_unstable(
++    params: InstallMarketplacePluginRequest_unstable,
++  ): Promise<InstalledPluginResult_unstable> {
++    const raw = await this.conn.extMethod(
++      "_goose/unstable/marketplace/install",
++      params,
++    );
++    return zInstalledPluginResult_unstable.parse(
++      raw,
++    ) as InstalledPluginResult_unstable;
++  }
++
++  async pluginsList_unstable(
++    params: ListInstalledPluginsRequest_unstable,
++  ): Promise<ListInstalledPluginsResponse_unstable> {
++    const raw = await this.conn.extMethod(
++      "_goose/unstable/plugins/list",
++      params,
++    );
++    return zListInstalledPluginsResponse_unstable.parse(
++      raw,
++    ) as ListInstalledPluginsResponse_unstable;
++  }
++
++  async pluginsSetEnabled_unstable(
++    params: SetPluginEnabledRequest_unstable,
++  ): Promise<void> {
++    await this.conn.extMethod("_goose/unstable/plugins/set-enabled", params);
++  }
++
++  async pluginsUpdate_unstable(
++    params: UpdatePluginRequest_unstable,
++  ): Promise<InstalledPluginResult_unstable> {
++    const raw = await this.conn.extMethod(
++      "_goose/unstable/plugins/update",
++      params,
++    );
++    return zInstalledPluginResult_unstable.parse(
++      raw,
++    ) as InstalledPluginResult_unstable;
++  }
++
+   async providersList_unstable(
+     params: ListProvidersRequest_unstable,
+   ): Promise<ListProvidersResponse_unstable> {
+     const raw = await this.conn.extMethod(
+       "_goose/unstable/providers/list",
+       params,
+     );
+     return zListProvidersResponse_unstable.parse(
+       raw,
+     ) as ListProvidersResponse_unstable;
+diff --git a/ui/sdk/src/generated/index.ts b/ui/sdk/src/generated/index.ts
+index 5cb5dec99..5a09f7490 100644
+--- a/ui/sdk/src/generated/index.ts
++++ b/ui/sdk/src/generated/index.ts
+@@ -1,13 +1,13 @@
+ // This file is auto-generated by @hey-api/openapi-ts
+ 
+-export type { AddConfigExtensionRequest_unstable, AddSessionExtensionRequest_unstable, AgentMention, Annotations, AppsExportRequest_unstable, AppsExportResponse_unstable, AppsImportRequest_unstable, AppsImportResponse_unstable, AppsListRequest_unstable, AppsListResponse_unstable, ArchiveSessionRequest_unstable, AudioContent, AvailableCommand, AvailableCommandInput, BlobResourceContents, CanonicalModelInfoDto, CanonicalModelInfoRequest_unstable, CanonicalModelInfoResponse_unstable, ConfigReadAllRequest_unstable, ConfigReadAllResponse_unstable, ConfigReadRequest_unstable, ConfigReadResponse_unstable, ConfigRemoveRequest_unstable, ConfigUpsertRequest_unstable, ContentBlock, CreateScheduleRequest_unstable, CreateScheduleResponse_unstable, CreateSourceRequest_unstable, CreateSourceResponse_unstable, CustomProviderConfigDto, CustomProviderCreateRequest_unstable, CustomProviderCreateResponse_unstable, CustomProviderDeleteRequest_unstable, CustomProviderDeleteResponse_unstable, CustomProviderReadRequest_unstable, CustomProviderReadResponse_unstable, CustomProviderUpdateRequest_unstable, CustomProviderUpdateResponse_unstable, DecodeRecipeRequest_unstable, DecodeRecipeResponse_unstable, DefaultsClearRequest_unstable, DefaultsReadRequest_unstable, DefaultsReadResponse_unstable, DefaultsSaveRequest_unstable, DeleteRecipeRequest_unstable, DeleteScheduleRequest_unstable, DeleteSessionRequest, DeleteSourceRequest_unstable, DiagnosticsGetRequest_unstable, DiagnosticsGetResponse_unstable, DiagnosticsReportLevel, DictationConfigRequest_unstable, DictationConfigResponse_unstable, DictationDownloadProgress, DictationLocalModelStatus, DictationModelCancelRequest_unstable, DictationModelDeleteRequest_unstable, DictationModelDownloadProgressRequest_unstable, DictationModelDownloadProgressResponse_unstable, DictationModelDownloadRequest_unstable, DictationModelOption, DictationModelSelectRequest_unstable, DictationModelsListRequest_unstable, DictationModelsListResponse_unstable, DictationProviderStatusEntry, DictationSecretDeleteRequest_unstable, DictationSecretSaveRequest_unstable, DictationTranscribeRequest_unstable, DictationTranscribeResponse_unstable, EmbeddedResource, EmbeddedResourceResource, EmptyResponse, EncodeRecipeRequest_unstable, EncodeRecipeResponse_unstable, EnvVariable, ExportSessionRequest_unstable, ExportSessionResponse_unstable, ExportSourceRequest_unstable, ExportSourceResponse_unstable, ExtAgentRequest, ExtAgentResponse, ExtNotification, ExtRequest, ExtResponse, GetAvailableExtensionsRequest_unstable, GetAvailableExtensionsResponse_unstable, GetConfigExtensionsRequest_unstable, GetConfigExtensionsResponse_unstable, GetPromptRequest_unstable, GetPromptResponse_unstable, GetSessionExtensionsRequest_unstable, GetSessionExtensionsResponse_unstable, GetSessionInfoRequest_unstable, GetSessionInfoResponse_unstable, GetToolsRequest_unstable, GetToolsResponse_unstable, GooseExtension, GooseExtensionEntry, GooseSessionNotification_unstable, GooseSessionUpdate, GooseToolCallRequest_unstable, GooseToolCallResponse_unstable, HttpHeader, ImageContent, ImportSessionRequest_unstable, ImportSessionResponse_unstable, ImportSourcesRequest_unstable, ImportSourcesResponse_unstable, InspectRunningJobRequest_unstable, InspectRunningJobResponse_unstable, KillRunningJobRequest_unstable, KillRunningJobResponse_unstable, ListAgentMentionsRequest_unstable, ListAgentMentionsResponse_unstable, ListPromptsRequest_unstable, ListPromptsResponse_unstable, ListProvidersRequest_unstable, ListProvidersResponse_unstable, ListRecipesRequest_unstable, ListRecipesResponse_unstable, ListScheduleSessionsRequest_unstable, ListScheduleSessionsResponse_unstable, ListSchedulesRequest_unstable, ListSchedulesResponse_unstable, ListSlashCommandsRequest_unstable, ListSlashCommandsResponse_unstable, ListSourcesRequest_unstable, ListSourcesResponse_unstable, LocalInferenceBuiltinChatTemplatesListRequest_unstable, LocalInferenceBuiltinChatTemplatesListResponse_unstable, LocalInferenceChatTemplate, LocalInferenceDownloadProgressDto, LocalInferenceDownloadState, LocalInferenceHfGgufFileDto, LocalInferenceHfModelInfoDto, LocalInferenceHfModelVariantDto, LocalInferenceHuggingFaceRepoVariantsRequest_unstable, LocalInferenceHuggingFaceRepoVariantsResponse_unstable, LocalInferenceHuggingFaceSearchRequest_unstable, LocalInferenceHuggingFaceSearchResponse_unstable, LocalInferenceModelDeleteRequest_unstable, LocalInferenceModelDownloadCancelRequest_unstable, LocalInferenceModelDownloadProgressRequest_unstable, LocalInferenceModelDownloadProgressResponse_unstable, LocalInferenceModelDownloadRequest_unstable, LocalInferenceModelDownloadResponse_unstable, LocalInferenceModelDownloadStatusDto, LocalInferenceModelDto, LocalInferenceModelSettingsDto, LocalInferenceModelSettingsReadRequest_unstable, LocalInferenceModelSettingsReadResponse_unstable, LocalInferenceModelSettingsUpdateRequest_unstable, LocalInferenceModelSettingsUpdateResponse_unstable, LocalInferenceModelsListRequest_unstable, LocalInferenceModelsListResponse_unstable, LocalInferenceSamplingConfig, LocalInferenceToolCallingMode, McpServer, McpServerAcp, McpServerAcpId, McpServerHttp, McpServerSse, McpServerStdio, OnboardingImportApplyRequest_unstable, OnboardingImportApplyResponse_unstable, OnboardingImportCandidate, OnboardingImportCounts, OnboardingImportScanRequest_unstable, OnboardingImportScanResponse_unstable, OnboardingImportSourceKind, ParseRecipeRequest_unstable, ParseRecipeResponse_unstable, PauseScheduleRequest_unstable, PreferenceKey, PreferencesReadRequest_unstable, PreferencesReadResponse_unstable, PreferencesRemoveRequest_unstable, PreferencesSaveRequest_unstable, PreferenceValue, PromptOperationResponse_unstable, PromptTemplateEntry, ProviderCatalogListRequest_unstable, ProviderCatalogListResponse_unstable, ProviderCatalogTemplateRequest_unstable, ProviderCatalogTemplateResponse_unstable, ProviderConfigAuthenticateRequest_unstable, ProviderConfigChangeResponse_unstable, ProviderConfigDeleteRequest_unstable, ProviderConfigFieldUpdate, ProviderConfigFieldValueDto, ProviderConfigKey, ProviderConfigReadRequest_unstable, ProviderConfigReadResponse_unstable, ProviderConfigSaveRequest_unstable, ProviderConfigStatusDto, ProviderConfigStatusRequest_unstable, ProviderConfigStatusResponse_unstable, ProviderInventoryEntryDto, ProviderInventoryModelDto, ProviderSecretDeleteRequest_unstable, ProviderSecretDto, ProviderSecretsListRequest_unstable, ProviderSecretsListResponse_unstable, ProviderSecretStatusDto, ProviderSecretStorageDto, ProviderSetupCatalogEntryDto, ProviderSetupCatalogListRequest_unstable, ProviderSetupCatalogListResponse_unstable, ProviderSetupCategoryDto, ProviderSetupFieldDto, ProviderSetupGroupDto, ProviderSetupMethodDto, ProviderSupportedModelsListRequest_unstable, ProviderSupportedModelsListResponse_unstable, ProviderTemplateCapabilitiesDto, ProviderTemplateCatalogEntryDto, ProviderTemplateDto, ProviderTemplateModelDto, ReadResourceRequest_unstable, ReadResourceResponse_unstable, RecipeAuthorDto, RecipeDto, RecipeExtensionDto, RecipeListEntryDto, RecipeParameterDto, RecipeParameterInputTypeDto, RecipeParameterRequirementDto, RecipeParamsAction, RecipeParamsResponse_unstable, RecipeResponseDto, RecipeRetryConfigDto, RecipeSettingsDto, RecipeSuccessCheckDto, RecipeToYamlRequest_unstable, RecipeToYamlResponse_unstable, RefreshProviderInventoryRequest_unstable, RefreshProviderInventoryResponse_unstable, RefreshProviderInventorySkipDto, RefreshProviderInventorySkipReasonDto, RemoveConfigExtensionRequest_unstable, RemoveSessionExtensionRequest_unstable, RenameSessionRequest_unstable, RequestRecipeParams_unstable, ResetPromptRequest_unstable, ResourceLink, Role, RunScheduleNowRequest_unstable, RunScheduleNowResponse_unstable, RunScheduleNowStatus, SavePromptRequest_unstable, SaveRecipeRequest_unstable, SaveRecipeResponse_unstable, ScanRecipeRequest_unstable, ScanRecipeResponse_unstable, ScheduledJobDto, ScheduleRecipeRequest_unstable, SessionId, SessionImportSource, SessionInfo, SessionSystemPromptMode, SessionUsageUpdate, SetConfigExtensionEnabledRequest_unstable, SetRecipeSlashCommandRequest_unstable, SetSessionSystemPromptRequest_unstable, SetToolPermissionsRequest_unstable, SetToolPermissionsResponse_unstable, ShareSessionNostrRequest_unstable, ShareSessionNostrResponse_unstable, SourceEntry, SourceScope, SourceType, StatusMessage, StatusMessageUpdate, SteerSessionRequest_unstable, SteerSessionResponse_unstable, SubRecipeDto, TextContent, TextResourceContents, ToolListItem, ToolPermissionEntry, ToolPermissionLevel, TruncateSessionConversationRequest_unstable, UnarchiveSessionRequest_unstable, UnpauseScheduleRequest_unstable, UnstructuredCommandInput, UpdateScheduleRequest_unstable, UpdateScheduleResponse_unstable, UpdateSessionProjectRequest_unstable, UpdateSourceRequest_unstable, UpdateSourceResponse_unstable, UpdateWorkingDirRequest_unstable } from './types.gen.js';
++export type { AddConfigExtensionRequest_unstable, AddMarketplaceRequest_unstable, AddSessionExtensionRequest_unstable, AgentMention, Annotations, AppsExportRequest_unstable, AppsExportResponse_unstable, AppsImportRequest_unstable, AppsImportResponse_unstable, AppsListRequest_unstable, AppsListResponse_unstable, ArchiveSessionRequest_unstable, AudioContent, AvailableCommand, AvailableCommandInput, BlobResourceContents, BrowseMarketplaceRequest_unstable, BrowseMarketplaceResponse_unstable, CanonicalModelInfoDto, CanonicalModelInfoRequest_unstable, CanonicalModelInfoResponse_unstable, CatalogPluginInfo, ConfigReadAllRequest_unstable, ConfigReadAllResponse_unstable, ConfigReadRequest_unstable, ConfigReadResponse_unstable, ConfigRemoveRequest_unstable, ConfigUpsertRequest_unstable, ContentBlock, CreateScheduleRequest_unstable, CreateScheduleResponse_unstable, CreateSourceRequest_unstable, CreateSourceResponse_unstable, CustomProviderConfigDto, CustomProviderCreateRequest_unstable, CustomProviderCreateResponse_unstable, CustomProviderDeleteRequest_unstable, CustomProviderDeleteResponse_unstable, CustomProviderReadRequest_unstable, CustomProviderReadResponse_unstable, CustomProviderUpdateRequest_unstable, CustomProviderUpdateResponse_unstable, DecodeRecipeRequest_unstable, DecodeRecipeResponse_unstable, DefaultsClearRequest_unstable, DefaultsReadRequest_unstable, DefaultsReadResponse_unstable, DefaultsSaveRequest_unstable, DeleteRecipeRequest_unstable, DeleteScheduleRequest_unstable, DeleteSessionRequest, DeleteSourceRequest_unstable, DiagnosticsGetRequest_unstable, DiagnosticsGetResponse_unstable, DiagnosticsReportLevel, DictationConfigRequest_unstable, DictationConfigResponse_unstable, DictationDownloadProgress, DictationLocalModelStatus, DictationModelCancelRequest_unstable, DictationModelDeleteRequest_unstable, DictationModelDownloadProgressRequest_unstable, DictationModelDownloadProgressResponse_unstable, DictationModelDownloadRequest_unstable, DictationModelOption, DictationModelSelectRequest_unstable, DictationModelsListRequest_unstable, DictationModelsListResponse_unstable, DictationProviderStatusEntry, DictationSecretDeleteRequest_unstable, DictationSecretSaveRequest_unstable, DictationTranscribeRequest_unstable, DictationTranscribeResponse_unstable, EmbeddedResource, EmbeddedResourceResource, EmptyResponse, EncodeRecipeRequest_unstable, EncodeRecipeResponse_unstable, EnvVariable, ExportSessionRequest_unstable, ExportSessionResponse_unstable, ExportSourceRequest_unstable, ExportSourceResponse_unstable, ExtAgentRequest, ExtAgentResponse, ExtNotification, ExtRequest, ExtResponse, GetAvailableExtensionsRequest_unstable, GetAvailableExtensionsResponse_unstable, GetConfigExtensionsRequest_unstable, GetConfigExtensionsResponse_unstable, GetPromptRequest_unstable, GetPromptResponse_unstable, GetSessionExtensionsRequest_unstable, GetSessionExtensionsResponse_unstable, GetSessionInfoRequest_unstable, GetSessionInfoResponse_unstable, GetToolsRequest_unstable, GetToolsResponse_unstable, GooseExtension, GooseExtensionEntry, GooseSessionNotification_unstable, GooseSessionUpdate, GooseToolCallRequest_unstable, GooseToolCallResponse_unstable, HttpHeader, ImageContent, ImportSessionRequest_unstable, ImportSessionResponse_unstable, ImportSourcesRequest_unstable, ImportSourcesResponse_unstable, InspectRunningJobRequest_unstable, InspectRunningJobResponse_unstable, InstalledPluginInfo, InstalledPluginResult_unstable, InstallMarketplacePluginRequest_unstable, KillRunningJobRequest_unstable, KillRunningJobResponse_unstable, ListAgentMentionsRequest_unstable, ListAgentMentionsResponse_unstable, ListInstalledPluginsRequest_unstable, ListInstalledPluginsResponse_unstable, ListMarketplacesRequest_unstable, ListMarketplacesResponse_unstable, ListPromptsRequest_unstable, ListPromptsResponse_unstable, ListProvidersRequest_unstable, ListProvidersResponse_unstable, ListRecipesRequest_unstable, ListRecipesResponse_unstable, ListScheduleSessionsRequest_unstable, ListScheduleSessionsResponse_unstable, ListSchedulesRequest_unstable, ListSchedulesResponse_unstable, ListSlashCommandsRequest_unstable, ListSlashCommandsResponse_unstable, ListSourcesRequest_unstable, ListSourcesResponse_unstable, LocalInferenceBuiltinChatTemplatesListRequest_unstable, LocalInferenceBuiltinChatTemplatesListResponse_unstable, LocalInferenceChatTemplate, LocalInferenceDownloadProgressDto, LocalInferenceDownloadState, LocalInferenceHfGgufFileDto, LocalInferenceHfModelInfoDto, LocalInferenceHfModelVariantDto, LocalInferenceHuggingFaceRepoVariantsRequest_unstable, LocalInferenceHuggingFaceRepoVariantsResponse_unstable, LocalInferenceHuggingFaceSearchRequest_unstable, LocalInferenceHuggingFaceSearchResponse_unstable, LocalInferenceModelDeleteRequest_unstable, LocalInferenceModelDownloadCancelRequest_unstable, LocalInferenceModelDownloadProgressRequest_unstable, LocalInferenceModelDownloadProgressResponse_unstable, LocalInferenceModelDownloadRequest_unstable, LocalInferenceModelDownloadResponse_unstable, LocalInferenceModelDownloadStatusDto, LocalInferenceModelDto, LocalInferenceModelSettingsDto, LocalInferenceModelSettingsReadRequest_unstable, LocalInferenceModelSettingsReadResponse_unstable, LocalInferenceModelSettingsUpdateRequest_unstable, LocalInferenceModelSettingsUpdateResponse_unstable, LocalInferenceModelsListRequest_unstable, LocalInferenceModelsListResponse_unstable, LocalInferenceSamplingConfig, LocalInferenceToolCallingMode, MarketplaceSourceInfo, McpServer, McpServerAcp, McpServerAcpId, McpServerHttp, McpServerSse, McpServerStdio, OnboardingImportApplyRequest_unstable, OnboardingImportApplyResponse_unstable, OnboardingImportCandidate, OnboardingImportCounts, OnboardingImportScanRequest_unstable, OnboardingImportScanResponse_unstable, OnboardingImportSourceKind, ParseRecipeRequest_unstable, ParseRecipeResponse_unstable, PauseScheduleRequest_unstable, PreferenceKey, PreferencesReadRequest_unstable, PreferencesReadResponse_unstable, PreferencesRemoveRequest_unstable, PreferencesSaveRequest_unstable, PreferenceValue, PromptOperationResponse_unstable, PromptTemplateEntry, ProviderCatalogListRequest_unstable, ProviderCatalogListResponse_unstable, ProviderCatalogTemplateRequest_unstable, ProviderCatalogTemplateResponse_unstable, ProviderConfigAuthenticateRequest_unstable, ProviderConfigChangeResponse_unstable, ProviderConfigDeleteRequest_unstable, ProviderConfigFieldUpdate, ProviderConfigFieldValueDto, ProviderConfigKey, ProviderConfigReadRequest_unstable, ProviderConfigReadResponse_unstable, ProviderConfigSaveRequest_unstable, ProviderConfigStatusDto, ProviderConfigStatusRequest_unstable, ProviderConfigStatusResponse_unstable, ProviderInventoryEntryDto, ProviderInventoryModelDto, ProviderSecretDeleteRequest_unstable, ProviderSecretDto, ProviderSecretsListRequest_unstable, ProviderSecretsListResponse_unstable, ProviderSecretStatusDto, ProviderSecretStorageDto, ProviderSetupCatalogEntryDto, ProviderSetupCatalogListRequest_unstable, ProviderSetupCatalogListResponse_unstable, ProviderSetupCategoryDto, ProviderSetupFieldDto, ProviderSetupGroupDto, ProviderSetupMethodDto, ProviderSupportedModelsListRequest_unstable, ProviderSupportedModelsListResponse_unstable, ProviderTemplateCapabilitiesDto, ProviderTemplateCatalogEntryDto, ProviderTemplateDto, ProviderTemplateModelDto, ReadResourceRequest_unstable, ReadResourceResponse_unstable, RecipeAuthorDto, RecipeDto, RecipeExtensionDto, RecipeListEntryDto, RecipeParameterDto, RecipeParameterInputTypeDto, RecipeParameterRequirementDto, RecipeParamsAction, RecipeParamsResponse_unstable, RecipeResponseDto, RecipeRetryConfigDto, RecipeSettingsDto, RecipeSuccessCheckDto, RecipeToYamlRequest_unstable, RecipeToYamlResponse_unstable, RefreshProviderInventoryRequest_unstable, RefreshProviderInventoryResponse_unstable, RefreshProviderInventorySkipDto, RefreshProviderInventorySkipReasonDto, RemoveConfigExtensionRequest_unstable, RemoveMarketplaceRequest_unstable, RemoveSessionExtensionRequest_unstable, RenameSessionRequest_unstable, RequestRecipeParams_unstable, ResetPromptRequest_unstable, ResourceLink, Role, RunScheduleNowRequest_unstable, RunScheduleNowResponse_unstable, RunScheduleNowStatus, SavePromptRequest_unstable, SaveRecipeRequest_unstable, SaveRecipeResponse_unstable, ScanRecipeRequest_unstable, ScanRecipeResponse_unstable, ScheduledJobDto, ScheduleRecipeRequest_unstable, SessionId, SessionImportSource, SessionInfo, SessionSystemPromptMode, SessionUsageUpdate, SetConfigExtensionEnabledRequest_unstable, SetPluginEnabledRequest_unstable, SetRecipeSlashCommandRequest_unstable, SetSessionSystemPromptRequest_unstable, SetToolPermissionsRequest_unstable, SetToolPermissionsResponse_unstable, ShareSessionNostrRequest_unstable, ShareSessionNostrResponse_unstable, SourceEntry, SourceScope, SourceType, StatusMessage, StatusMessageUpdate, SteerSessionRequest_unstable, SteerSessionResponse_unstable, SubRecipeDto, TextContent, TextResourceContents, ToolListItem, ToolPermissionEntry, ToolPermissionLevel, TruncateSessionConversationRequest_unstable, UnarchiveSessionRequest_unstable, UnpauseScheduleRequest_unstable, UnstructuredCommandInput, UpdatePluginRequest_unstable, UpdateScheduleRequest_unstable, UpdateScheduleResponse_unstable, UpdateSessionProjectRequest_unstable, UpdateSourceRequest_unstable, UpdateSourceResponse_unstable, UpdateWorkingDirRequest_unstable } from './types.gen.js';
+ 
+ export const GOOSE_EXT_METHODS = [
+   {
+     method: "_goose/unstable/session/extensions/add",
+     requestType: "AddSessionExtensionRequest_unstable",
+     responseType: "EmptyResponse",
+   },
+   {
+     method: "_goose/unstable/session/extensions/remove",
+     requestType: "RemoveSessionExtensionRequest_unstable",
+@@ -116,20 +116,60 @@ export const GOOSE_EXT_METHODS = [
+   {
+     method: "_goose/unstable/config/extensions/set-enabled",
+     requestType: "SetConfigExtensionEnabledRequest_unstable",
+     responseType: "EmptyResponse",
+   },
+   {
+     method: "_goose/unstable/session/extensions/list",
+     requestType: "GetSessionExtensionsRequest_unstable",
+     responseType: "GetSessionExtensionsResponse_unstable",
+   },
++  {
++    method: "_goose/unstable/marketplace/list",
++    requestType: "ListMarketplacesRequest_unstable",
++    responseType: "ListMarketplacesResponse_unstable",
++  },
++  {
++    method: "_goose/unstable/marketplace/add",
++    requestType: "AddMarketplaceRequest_unstable",
++    responseType: "EmptyResponse",
++  },
++  {
++    method: "_goose/unstable/marketplace/remove",
++    requestType: "RemoveMarketplaceRequest_unstable",
++    responseType: "EmptyResponse",
++  },
++  {
++    method: "_goose/unstable/marketplace/browse",
++    requestType: "BrowseMarketplaceRequest_unstable",
++    responseType: "BrowseMarketplaceResponse_unstable",
++  },
++  {
++    method: "_goose/unstable/marketplace/install",
++    requestType: "InstallMarketplacePluginRequest_unstable",
++    responseType: "InstalledPluginResult_unstable",
++  },
++  {
++    method: "_goose/unstable/plugins/list",
++    requestType: "ListInstalledPluginsRequest_unstable",
++    responseType: "ListInstalledPluginsResponse_unstable",
++  },
++  {
++    method: "_goose/unstable/plugins/set-enabled",
++    requestType: "SetPluginEnabledRequest_unstable",
++    responseType: "EmptyResponse",
++  },
++  {
++    method: "_goose/unstable/plugins/update",
++    requestType: "UpdatePluginRequest_unstable",
++    responseType: "InstalledPluginResult_unstable",
++  },
+   {
+     method: "_goose/unstable/providers/list",
+     requestType: "ListProvidersRequest_unstable",
+     responseType: "ListProvidersResponse_unstable",
+   },
+   {
+     method: "_goose/unstable/providers/supported-models/list",
+     requestType: "ProviderSupportedModelsListRequest_unstable",
+     responseType: "ProviderSupportedModelsListResponse_unstable",
+   },
+diff --git a/ui/sdk/src/generated/types.gen.ts b/ui/sdk/src/generated/types.gen.ts
+index f6f71e336..2454de2ca 100644
+--- a/ui/sdk/src/generated/types.gen.ts
++++ b/ui/sdk/src/generated/types.gen.ts
+@@ -820,20 +820,102 @@ export type SetConfigExtensionEnabledRequest_unstable = {
+ };
+ 
+ export type GetSessionExtensionsRequest_unstable = {
+     sessionId: string;
+ };
+ 
+ export type GetSessionExtensionsResponse_unstable = {
+     extensions: Array<GooseExtension>;
+ };
+ 
++export type ListMarketplacesRequest_unstable = {
++    [key: string]: unknown;
++};
++
++export type ListMarketplacesResponse_unstable = {
++    marketplaces: Array<MarketplaceSourceInfo>;
++};
++
++export type MarketplaceSourceInfo = {
++    name: string;
++    kind: string;
++    location: string;
++    enabled: boolean;
++};
++
++export type AddMarketplaceRequest_unstable = {
++    name: string;
++    kind: string;
++    location: string;
++};
++
++export type RemoveMarketplaceRequest_unstable = {
++    name: string;
++};
++
++export type BrowseMarketplaceRequest_unstable = {
++    name: string;
++};
++
++export type BrowseMarketplaceResponse_unstable = {
++    plugins: Array<CatalogPluginInfo>;
++};
++
++export type CatalogPluginInfo = {
++    name: string;
++    description?: string | null;
++    installable: boolean;
++    sourceKind: string;
++};
++
++export type InstallMarketplacePluginRequest_unstable = {
++    marketplace: string;
++    plugin: string;
++    autoUpdate?: boolean;
++};
++
++export type InstalledPluginResult_unstable = {
++    name: string;
++    version: string;
++    format: string;
++    source: string;
++    skills: Array<string>;
++    hasHooks: boolean;
++    hasMcp: boolean;
++};
++
++export type ListInstalledPluginsRequest_unstable = {
++    [key: string]: unknown;
++};
++
++export type ListInstalledPluginsResponse_unstable = {
++    plugins: Array<InstalledPluginInfo>;
++};
++
++export type InstalledPluginInfo = {
++    name: string;
++    version: string;
++    source: string;
++    enabled: boolean;
++    autoUpdate: boolean;
++    updatable: boolean;
++};
++
++export type SetPluginEnabledRequest_unstable = {
++    name: string;
++    enabled: boolean;
++};
++
++export type UpdatePluginRequest_unstable = {
++    name: string;
++};
++
+ /**
+  * List providers with setup metadata and the current model inventory snapshot.
+  */
+ export type ListProvidersRequest_unstable = {
+     /**
+      * Only return entries for these providers. Empty means all.
+      */
+     providerIds?: Array<string>;
+ };
+ 
+@@ -2572,28 +2654,28 @@ export type RecipeParamsResponse_unstable = {
+     values?: {
+         [key: string]: string;
+     };
+ };
+ 
+ export type RecipeParamsAction = 'submit' | 'cancel';
+ 
+ export type ExtRequest = {
+     id: string;
+     method: string;
+-    params?: AddSessionExtensionRequest_unstable | RemoveSessionExtensionRequest_unstable | GetToolsRequest_unstable | SetToolPermissionsRequest_unstable | GooseToolCallRequest_unstable | ReadResourceRequest_unstable | AppsListRequest_unstable | AppsExportRequest_unstable | AppsImportRequest_unstable | UpdateWorkingDirRequest_unstable | SetSessionSystemPromptRequest_unstable | SteerSessionRequest_unstable | DiagnosticsGetRequest_unstable | ListPromptsRequest_unstable | GetPromptRequest_unstable | SavePromptRequest_unstable | ResetPromptRequest_unstable | DeleteSessionRequest | GetConfigExtensionsRequest_unstable | GetAvailableExtensionsRequest_unstable | AddConfigExtensionRequest_unstable | RemoveConfigExtensionRequest_unstable | SetConfigExtensionEnabledRequest_unstable | GetSessionExtensionsRequest_unstable | ListProvidersRequest_unstable | ProviderSupportedModelsListRequest_unstable | ProviderCatalogListRequest_unstable | ProviderSetupCatalogListRequest_unstable | ProviderCatalogTemplateRequest_unstable | CustomProviderCreateRequest_unstable | CustomProviderReadRequest_unstable | CustomProviderUpdateRequest_unstable | CustomProviderDeleteRequest_unstable | RefreshProviderInventoryRequest_unstable | ProviderConfigReadRequest_unstable | ProviderConfigStatusRequest_unstable | ProviderConfigSaveRequest_unstable | ProviderConfigDeleteRequest_unstable | ProviderConfigAuthenticateRequest_unstable | ProviderSecretsListRequest_unstable | ProviderSecretDeleteRequest_unstable | CanonicalModelInfoRequest_unstable | PreferencesReadRequest_unstable | PreferencesSaveRequest_unstable | PreferencesRemoveRequest_unstable | ConfigReadRequest_unstable | ConfigUpsertRequest_unstable | ConfigRemoveRequest_unstable | ConfigReadAllRequest_unstable | DefaultsReadRequest_unstable | DefaultsSaveRequest_unstable | DefaultsClearRequest_unstable | OnboardingImportScanRequest_unstable | OnboardingImportApplyRequest_unstable | ExportSessionRequest_unstable | ImportSessionRequest_unstable | ShareSessionNostrRequest_unstable | EncodeRecipeRequest_unstable | DecodeRecipeRequest_unstable | ScanRecipeRequest_unstable | ListRecipesRequest_unstable | DeleteRecipeRequest_unstable | ScheduleRecipeRequest_unstable | SetRecipeSlashCommandRequest_unstable | SaveRecipeRequest_unstable | ParseRecipeRequest_unstable | RecipeToYamlRequest_unstable | ListSchedulesRequest_unstable | ListScheduleSessionsRequest_unstable | CreateScheduleRequest_unstable | DeleteScheduleRequest_unstable | PauseScheduleRequest_unstable | UnpauseScheduleRequest_unstable | UpdateScheduleRequest_unstable | RunScheduleNowRequest_unstable | KillRunningJobRequest_unstable | InspectRunningJobRequest_unstable | GetSessionInfoRequest_unstable | TruncateSessionConversationRequest_unstable | UpdateSessionProjectRequest_unstable | RenameSessionRequest_unstable | ArchiveSessionRequest_unstable | UnarchiveSessionRequest_unstable | CreateSourceRequest_unstable | ListSourcesRequest_unstable | ListAgentMentionsRequest_unstable | ListSlashCommandsRequest_unstable | UpdateSourceRequest_unstable | DeleteSourceRequest_unstable | ExportSourceRequest_unstable | ImportSourcesRequest_unstable | DictationTranscribeRequest_unstable | DictationConfigRequest_unstable | DictationSecretSaveRequest_unstable | DictationSecretDeleteRequest_unstable | DictationModelsListRequest_unstable | DictationModelDownloadRequest_unstable | DictationModelDownloadProgressRequest_unstable | DictationModelCancelRequest_unstable | DictationModelDeleteRequest_unstable | DictationModelSelectRequest_unstable | LocalInferenceModelsListRequest_unstable | LocalInferenceModelDownloadRequest_unstable | LocalInferenceModelDownloadProgressRequest_unstable | LocalInferenceModelDownloadCancelRequest_unstable | LocalInferenceModelDeleteRequest_unstable | LocalInferenceModelSettingsReadRequest_unstable | LocalInferenceModelSettingsUpdateRequest_unstable | LocalInferenceHuggingFaceSearchRequest_unstable | LocalInferenceHuggingFaceRepoVariantsRequest_unstable | LocalInferenceBuiltinChatTemplatesListRequest_unstable | {
++    params?: AddSessionExtensionRequest_unstable | RemoveSessionExtensionRequest_unstable | GetToolsRequest_unstable | SetToolPermissionsRequest_unstable | GooseToolCallRequest_unstable | ReadResourceRequest_unstable | AppsListRequest_unstable | AppsExportRequest_unstable | AppsImportRequest_unstable | UpdateWorkingDirRequest_unstable | SetSessionSystemPromptRequest_unstable | SteerSessionRequest_unstable | DiagnosticsGetRequest_unstable | ListPromptsRequest_unstable | GetPromptRequest_unstable | SavePromptRequest_unstable | ResetPromptRequest_unstable | DeleteSessionRequest | GetConfigExtensionsRequest_unstable | GetAvailableExtensionsRequest_unstable | AddConfigExtensionRequest_unstable | RemoveConfigExtensionRequest_unstable | SetConfigExtensionEnabledRequest_unstable | GetSessionExtensionsRequest_unstable | ListMarketplacesRequest_unstable | AddMarketplaceRequest_unstable | RemoveMarketplaceRequest_unstable | BrowseMarketplaceRequest_unstable | InstallMarketplacePluginRequest_unstable | ListInstalledPluginsRequest_unstable | SetPluginEnabledRequest_unstable | UpdatePluginRequest_unstable | ListProvidersRequest_unstable | ProviderSupportedModelsListRequest_unstable | ProviderCatalogListRequest_unstable | ProviderSetupCatalogListRequest_unstable | ProviderCatalogTemplateRequest_unstable | CustomProviderCreateRequest_unstable | CustomProviderReadRequest_unstable | CustomProviderUpdateRequest_unstable | CustomProviderDeleteRequest_unstable | RefreshProviderInventoryRequest_unstable | ProviderConfigReadRequest_unstable | ProviderConfigStatusRequest_unstable | ProviderConfigSaveRequest_unstable | ProviderConfigDeleteRequest_unstable | ProviderConfigAuthenticateRequest_unstable | ProviderSecretsListRequest_unstable | ProviderSecretDeleteRequest_unstable | CanonicalModelInfoRequest_unstable | PreferencesReadRequest_unstable | PreferencesSaveRequest_unstable | PreferencesRemoveRequest_unstable | ConfigReadRequest_unstable | ConfigUpsertRequest_unstable | ConfigRemoveRequest_unstable | ConfigReadAllRequest_unstable | DefaultsReadRequest_unstable | DefaultsSaveRequest_unstable | DefaultsClearRequest_unstable | OnboardingImportScanRequest_unstable | OnboardingImportApplyRequest_unstable | ExportSessionRequest_unstable | ImportSessionRequest_unstable | ShareSessionNostrRequest_unstable | EncodeRecipeRequest_unstable | DecodeRecipeRequest_unstable | ScanRecipeRequest_unstable | ListRecipesRequest_unstable | DeleteRecipeRequest_unstable | ScheduleRecipeRequest_unstable | SetRecipeSlashCommandRequest_unstable | SaveRecipeRequest_unstable | ParseRecipeRequest_unstable | RecipeToYamlRequest_unstable | ListSchedulesRequest_unstable | ListScheduleSessionsRequest_unstable | CreateScheduleRequest_unstable | DeleteScheduleRequest_unstable | PauseScheduleRequest_unstable | UnpauseScheduleRequest_unstable | UpdateScheduleRequest_unstable | RunScheduleNowRequest_unstable | KillRunningJobRequest_unstable | InspectRunningJobRequest_unstable | GetSessionInfoRequest_unstable | TruncateSessionConversationRequest_unstable | UpdateSessionProjectRequest_unstable | RenameSessionRequest_unstable | ArchiveSessionRequest_unstable | UnarchiveSessionRequest_unstable | CreateSourceRequest_unstable | ListSourcesRequest_unstable | ListAgentMentionsRequest_unstable | ListSlashCommandsRequest_unstable | UpdateSourceRequest_unstable | DeleteSourceRequest_unstable | ExportSourceRequest_unstable | ImportSourcesRequest_unstable | DictationTranscribeRequest_unstable | DictationConfigRequest_unstable | DictationSecretSaveRequest_unstable | DictationSecretDeleteRequest_unstable | DictationModelsListRequest_unstable | DictationModelDownloadRequest_unstable | DictationModelDownloadProgressRequest_unstable | DictationModelCancelRequest_unstable | DictationModelDeleteRequest_unstable | DictationModelSelectRequest_unstable | LocalInferenceModelsListRequest_unstable | LocalInferenceModelDownloadRequest_unstable | LocalInferenceModelDownloadProgressRequest_unstable | LocalInferenceModelDownloadCancelRequest_unstable | LocalInferenceModelDeleteRequest_unstable | LocalInferenceModelSettingsReadRequest_unstable | LocalInferenceModelSettingsUpdateRequest_unstable | LocalInferenceHuggingFaceSearchRequest_unstable | LocalInferenceHuggingFaceRepoVariantsRequest_unstable | LocalInferenceBuiltinChatTemplatesListRequest_unstable | {
+         [key: string]: unknown;
+     } | null;
+ };
+ 
+ export type ExtResponse = {
+     id: string;
+-    result?: EmptyResponse | GetToolsResponse_unstable | SetToolPermissionsResponse_unstable | GooseToolCallResponse_unstable | ReadResourceResponse_unstable | AppsListResponse_unstable | AppsExportResponse_unstable | AppsImportResponse_unstable | SteerSessionResponse_unstable | DiagnosticsGetResponse_unstable | ListPromptsResponse_unstable | GetPromptResponse_unstable | PromptOperationResponse_unstable | GetConfigExtensionsResponse_unstable | GetAvailableExtensionsResponse_unstable | GetSessionExtensionsResponse_unstable | ListProvidersResponse_unstable | ProviderSupportedModelsListResponse_unstable | ProviderCatalogListResponse_unstable | ProviderSetupCatalogListResponse_unstable | ProviderCatalogTemplateResponse_unstable | CustomProviderCreateResponse_unstable | CustomProviderReadResponse_unstable | CustomProviderUpdateResponse_unstable | CustomProviderDeleteResponse_unstable | RefreshProviderInventoryResponse_unstable | ProviderConfigReadResponse_unstable | ProviderConfigStatusResponse_unstable | ProviderConfigChangeResponse_unstable | ProviderSecretsListResponse_unstable | CanonicalModelInfoResponse_unstable | PreferencesReadResponse_unstable | ConfigReadResponse_unstable | ConfigReadAllResponse_unstable | DefaultsReadResponse_unstable | OnboardingImportScanResponse_unstable | OnboardingImportApplyResponse_unstable | ExportSessionResponse_unstable | ImportSessionResponse_unstable | ShareSessionNostrResponse_unstable | EncodeRecipeResponse_unstable | DecodeRecipeResponse_unstable | ScanRecipeResponse_unstable | ListRecipesResponse_unstable | SaveRecipeResponse_unstable | ParseRecipeResponse_unstable | RecipeToYamlResponse_unstable | ListSchedulesResponse_unstable | ListScheduleSessionsResponse_unstable | CreateScheduleResponse_unstable | UpdateScheduleResponse_unstable | RunScheduleNowResponse_unstable | KillRunningJobResponse_unstable | InspectRunningJobResponse_unstable | GetSessionInfoResponse_unstable | CreateSourceResponse_unstable | ListSourcesResponse_unstable | ListAgentMentionsResponse_unstable | ListSlashCommandsResponse_unstable | UpdateSourceResponse_unstable | ExportSourceResponse_unstable | ImportSourcesResponse_unstable | DictationTranscribeResponse_unstable | DictationConfigResponse_unstable | DictationModelsListResponse_unstable | DictationModelDownloadProgressResponse_unstable | LocalInferenceModelsListResponse_unstable | LocalInferenceModelDownloadResponse_unstable | LocalInferenceModelDownloadProgressResponse_unstable | LocalInferenceModelSettingsReadResponse_unstable | LocalInferenceModelSettingsUpdateResponse_unstable | LocalInferenceHuggingFaceSearchResponse_unstable | LocalInferenceHuggingFaceRepoVariantsResponse_unstable | LocalInferenceBuiltinChatTemplatesListResponse_unstable | unknown;
++    result?: EmptyResponse | GetToolsResponse_unstable | SetToolPermissionsResponse_unstable | GooseToolCallResponse_unstable | ReadResourceResponse_unstable | AppsListResponse_unstable | AppsExportResponse_unstable | AppsImportResponse_unstable | SteerSessionResponse_unstable | DiagnosticsGetResponse_unstable | ListPromptsResponse_unstable | GetPromptResponse_unstable | PromptOperationResponse_unstable | GetConfigExtensionsResponse_unstable | GetAvailableExtensionsResponse_unstable | GetSessionExtensionsResponse_unstable | ListMarketplacesResponse_unstable | BrowseMarketplaceResponse_unstable | InstalledPluginResult_unstable | ListInstalledPluginsResponse_unstable | ListProvidersResponse_unstable | ProviderSupportedModelsListResponse_unstable | ProviderCatalogListResponse_unstable | ProviderSetupCatalogListResponse_unstable | ProviderCatalogTemplateResponse_unstable | CustomProviderCreateResponse_unstable | CustomProviderReadResponse_unstable | CustomProviderUpdateResponse_unstable | CustomProviderDeleteResponse_unstable | RefreshProviderInventoryResponse_unstable | ProviderConfigReadResponse_unstable | ProviderConfigStatusResponse_unstable | ProviderConfigChangeResponse_unstable | ProviderSecretsListResponse_unstable | CanonicalModelInfoResponse_unstable | PreferencesReadResponse_unstable | ConfigReadResponse_unstable | ConfigReadAllResponse_unstable | DefaultsReadResponse_unstable | OnboardingImportScanResponse_unstable | OnboardingImportApplyResponse_unstable | ExportSessionResponse_unstable | ImportSessionResponse_unstable | ShareSessionNostrResponse_unstable | EncodeRecipeResponse_unstable | DecodeRecipeResponse_unstable | ScanRecipeResponse_unstable | ListRecipesResponse_unstable | SaveRecipeResponse_unstable | ParseRecipeResponse_unstable | RecipeToYamlResponse_unstable | ListSchedulesResponse_unstable | ListScheduleSessionsResponse_unstable | CreateScheduleResponse_unstable | UpdateScheduleResponse_unstable | RunScheduleNowResponse_unstable | KillRunningJobResponse_unstable | InspectRunningJobResponse_unstable | GetSessionInfoResponse_unstable | CreateSourceResponse_unstable | ListSourcesResponse_unstable | ListAgentMentionsResponse_unstable | ListSlashCommandsResponse_unstable | UpdateSourceResponse_unstable | ExportSourceResponse_unstable | ImportSourcesResponse_unstable | DictationTranscribeResponse_unstable | DictationConfigResponse_unstable | DictationModelsListResponse_unstable | DictationModelDownloadProgressResponse_unstable | LocalInferenceModelsListResponse_unstable | LocalInferenceModelDownloadResponse_unstable | LocalInferenceModelDownloadProgressResponse_unstable | LocalInferenceModelSettingsReadResponse_unstable | LocalInferenceModelSettingsUpdateResponse_unstable | LocalInferenceHuggingFaceSearchResponse_unstable | LocalInferenceHuggingFaceRepoVariantsResponse_unstable | LocalInferenceBuiltinChatTemplatesListResponse_unstable | unknown;
+ } | {
+     error: {
+         code: number;
+         message: string;
+         data?: unknown;
+     };
+     id: string;
+ };
+ 
+ export type ExtNotification = {
+diff --git a/ui/sdk/src/generated/zod.gen.ts b/ui/sdk/src/generated/zod.gen.ts
+index 2ff020ffc..ace9aa239 100644
+--- a/ui/sdk/src/generated/zod.gen.ts
++++ b/ui/sdk/src/generated/zod.gen.ts
+@@ -708,20 +708,101 @@ export const zSetConfigExtensionEnabledRequest_unstable = z.object({
+ });
+ 
+ export const zGetSessionExtensionsRequest_unstable = z.object({
+     sessionId: z.string()
+ });
+ 
+ export const zGetSessionExtensionsResponse_unstable = z.object({
+     extensions: z.array(zGooseExtension)
+ });
+ 
++export const zListMarketplacesRequest_unstable = z.record(z.unknown());
++
++export const zMarketplaceSourceInfo = z.object({
++    name: z.string(),
++    kind: z.string(),
++    location: z.string(),
++    enabled: z.boolean()
++});
++
++export const zListMarketplacesResponse_unstable = z.object({
++    marketplaces: z.array(zMarketplaceSourceInfo)
++});
++
++export const zAddMarketplaceRequest_unstable = z.object({
++    name: z.string(),
++    kind: z.string(),
++    location: z.string()
++});
++
++export const zRemoveMarketplaceRequest_unstable = z.object({
++    name: z.string()
++});
++
++export const zBrowseMarketplaceRequest_unstable = z.object({
++    name: z.string()
++});
++
++export const zCatalogPluginInfo = z.object({
++    name: z.string(),
++    description: z.union([
++        z.string(),
++        z.null()
++    ]).optional(),
++    installable: z.boolean(),
++    sourceKind: z.string()
++});
++
++export const zBrowseMarketplaceResponse_unstable = z.object({
++    plugins: z.array(zCatalogPluginInfo)
++});
++
++export const zInstallMarketplacePluginRequest_unstable = z.object({
++    marketplace: z.string(),
++    plugin: z.string(),
++    autoUpdate: z.boolean().optional().default(false)
++});
++
++export const zInstalledPluginResult_unstable = z.object({
++    name: z.string(),
++    version: z.string(),
++    format: z.string(),
++    source: z.string(),
++    skills: z.array(z.string()),
++    hasHooks: z.boolean(),
++    hasMcp: z.boolean()
++});
++
++export const zListInstalledPluginsRequest_unstable = z.record(z.unknown());
++
++export const zInstalledPluginInfo = z.object({
++    name: z.string(),
++    version: z.string(),
++    source: z.string(),
++    enabled: z.boolean(),
++    autoUpdate: z.boolean(),
++    updatable: z.boolean()
++});
++
++export const zListInstalledPluginsResponse_unstable = z.object({
++    plugins: z.array(zInstalledPluginInfo)
++});
++
++export const zSetPluginEnabledRequest_unstable = z.object({
++    name: z.string(),
++    enabled: z.boolean()
++});
++
++export const zUpdatePluginRequest_unstable = z.object({
++    name: z.string()
++});
++
+ /**
+  * List providers with setup metadata and the current model inventory snapshot.
+  */
+ export const zListProvidersRequest_unstable = z.object({
+     providerIds: z.array(z.string()).optional().default([])
+ });
+ 
+ export const zProviderSetupCategoryDto = z.enum(['agent', 'model']);
+ 
+ export const zProviderConfigKey = z.object({
+@@ -2758,20 +2839,28 @@ export const zExtRequest = z.object({
+             zGetPromptRequest_unstable,
+             zSavePromptRequest_unstable,
+             zResetPromptRequest_unstable,
+             zDeleteSessionRequest,
+             zGetConfigExtensionsRequest_unstable,
+             zGetAvailableExtensionsRequest_unstable,
+             zAddConfigExtensionRequest_unstable,
+             zRemoveConfigExtensionRequest_unstable,
+             zSetConfigExtensionEnabledRequest_unstable,
+             zGetSessionExtensionsRequest_unstable,
++            zListMarketplacesRequest_unstable,
++            zAddMarketplaceRequest_unstable,
++            zRemoveMarketplaceRequest_unstable,
++            zBrowseMarketplaceRequest_unstable,
++            zInstallMarketplacePluginRequest_unstable,
++            zListInstalledPluginsRequest_unstable,
++            zSetPluginEnabledRequest_unstable,
++            zUpdatePluginRequest_unstable,
+             zListProvidersRequest_unstable,
+             zProviderSupportedModelsListRequest_unstable,
+             zProviderCatalogListRequest_unstable,
+             zProviderSetupCatalogListRequest_unstable,
+             zProviderCatalogTemplateRequest_unstable,
+             zCustomProviderCreateRequest_unstable,
+             zCustomProviderReadRequest_unstable,
+             zCustomProviderUpdateRequest_unstable,
+             zCustomProviderDeleteRequest_unstable,
+             zRefreshProviderInventoryRequest_unstable,
+@@ -2874,20 +2963,24 @@ export const zExtResponse = z.union([
+                 zAppsExportResponse_unstable,
+                 zAppsImportResponse_unstable,
+                 zSteerSessionResponse_unstable,
+                 zDiagnosticsGetResponse_unstable,
+                 zListPromptsResponse_unstable,
+                 zGetPromptResponse_unstable,
+                 zPromptOperationResponse_unstable,
+                 zGetConfigExtensionsResponse_unstable,
+                 zGetAvailableExtensionsResponse_unstable,
+                 zGetSessionExtensionsResponse_unstable,
++                zListMarketplacesResponse_unstable,
++                zBrowseMarketplaceResponse_unstable,
++                zInstalledPluginResult_unstable,
++                zListInstalledPluginsResponse_unstable,
+                 zListProvidersResponse_unstable,
+                 zProviderSupportedModelsListResponse_unstable,
+                 zProviderCatalogListResponse_unstable,
+                 zProviderSetupCatalogListResponse_unstable,
+                 zProviderCatalogTemplateResponse_unstable,
+                 zCustomProviderCreateResponse_unstable,
+                 zCustomProviderReadResponse_unstable,
+                 zCustomProviderUpdateResponse_unstable,
+                 zCustomProviderDeleteResponse_unstable,
+                 zRefreshProviderInventoryResponse_unstable,

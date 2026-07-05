@@ -715,6 +715,87 @@ export const zGetSessionExtensionsResponse_unstable = z.object({
     extensions: z.array(zGooseExtension)
 });
 
+export const zListMarketplacesRequest_unstable = z.record(z.unknown());
+
+export const zMarketplaceSourceInfo = z.object({
+    name: z.string(),
+    kind: z.string(),
+    location: z.string(),
+    enabled: z.boolean()
+});
+
+export const zListMarketplacesResponse_unstable = z.object({
+    marketplaces: z.array(zMarketplaceSourceInfo)
+});
+
+export const zAddMarketplaceRequest_unstable = z.object({
+    name: z.string(),
+    kind: z.string(),
+    location: z.string()
+});
+
+export const zRemoveMarketplaceRequest_unstable = z.object({
+    name: z.string()
+});
+
+export const zBrowseMarketplaceRequest_unstable = z.object({
+    name: z.string()
+});
+
+export const zCatalogPluginInfo = z.object({
+    name: z.string(),
+    description: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    installable: z.boolean(),
+    sourceKind: z.string()
+});
+
+export const zBrowseMarketplaceResponse_unstable = z.object({
+    plugins: z.array(zCatalogPluginInfo)
+});
+
+export const zInstallMarketplacePluginRequest_unstable = z.object({
+    marketplace: z.string(),
+    plugin: z.string(),
+    autoUpdate: z.boolean().optional().default(false)
+});
+
+export const zInstalledPluginResult_unstable = z.object({
+    name: z.string(),
+    version: z.string(),
+    format: z.string(),
+    source: z.string(),
+    skills: z.array(z.string()),
+    hasHooks: z.boolean(),
+    hasMcp: z.boolean()
+});
+
+export const zListInstalledPluginsRequest_unstable = z.record(z.unknown());
+
+export const zInstalledPluginInfo = z.object({
+    name: z.string(),
+    version: z.string(),
+    source: z.string(),
+    enabled: z.boolean(),
+    autoUpdate: z.boolean(),
+    updatable: z.boolean()
+});
+
+export const zListInstalledPluginsResponse_unstable = z.object({
+    plugins: z.array(zInstalledPluginInfo)
+});
+
+export const zSetPluginEnabledRequest_unstable = z.object({
+    name: z.string(),
+    enabled: z.boolean()
+});
+
+export const zUpdatePluginRequest_unstable = z.object({
+    name: z.string()
+});
+
 /**
  * List providers with setup metadata and the current model inventory snapshot.
  */
@@ -2765,6 +2846,14 @@ export const zExtRequest = z.object({
             zRemoveConfigExtensionRequest_unstable,
             zSetConfigExtensionEnabledRequest_unstable,
             zGetSessionExtensionsRequest_unstable,
+            zListMarketplacesRequest_unstable,
+            zAddMarketplaceRequest_unstable,
+            zRemoveMarketplaceRequest_unstable,
+            zBrowseMarketplaceRequest_unstable,
+            zInstallMarketplacePluginRequest_unstable,
+            zListInstalledPluginsRequest_unstable,
+            zSetPluginEnabledRequest_unstable,
+            zUpdatePluginRequest_unstable,
             zListProvidersRequest_unstable,
             zProviderSupportedModelsListRequest_unstable,
             zProviderCatalogListRequest_unstable,
@@ -2881,6 +2970,10 @@ export const zExtResponse = z.union([
                 zGetConfigExtensionsResponse_unstable,
                 zGetAvailableExtensionsResponse_unstable,
                 zGetSessionExtensionsResponse_unstable,
+                zListMarketplacesResponse_unstable,
+                zBrowseMarketplaceResponse_unstable,
+                zInstalledPluginResult_unstable,
+                zListInstalledPluginsResponse_unstable,
                 zListProvidersResponse_unstable,
                 zProviderSupportedModelsListResponse_unstable,
                 zProviderCatalogListResponse_unstable,

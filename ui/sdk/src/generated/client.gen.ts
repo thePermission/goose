@@ -10,6 +10,7 @@ export interface ExtMethodProvider {
 import type { Client } from "@agentclientprotocol/sdk";
 import type {
   AddConfigExtensionRequest_unstable,
+  AddMarketplaceRequest_unstable,
   AddSessionExtensionRequest_unstable,
   AppsExportRequest_unstable,
   AppsExportResponse_unstable,
@@ -18,6 +19,8 @@ import type {
   AppsListRequest_unstable,
   AppsListResponse_unstable,
   ArchiveSessionRequest_unstable,
+  BrowseMarketplaceRequest_unstable,
+  BrowseMarketplaceResponse_unstable,
   CanonicalModelInfoRequest_unstable,
   CanonicalModelInfoResponse_unstable,
   ConfigReadAllRequest_unstable,
@@ -91,10 +94,16 @@ import type {
   ImportSourcesResponse_unstable,
   InspectRunningJobRequest_unstable,
   InspectRunningJobResponse_unstable,
+  InstallMarketplacePluginRequest_unstable,
+  InstalledPluginResult_unstable,
   KillRunningJobRequest_unstable,
   KillRunningJobResponse_unstable,
   ListAgentMentionsRequest_unstable,
   ListAgentMentionsResponse_unstable,
+  ListInstalledPluginsRequest_unstable,
+  ListInstalledPluginsResponse_unstable,
+  ListMarketplacesRequest_unstable,
+  ListMarketplacesResponse_unstable,
   ListPromptsRequest_unstable,
   ListPromptsResponse_unstable,
   ListProvidersRequest_unstable,
@@ -166,6 +175,7 @@ import type {
   RefreshProviderInventoryRequest_unstable,
   RefreshProviderInventoryResponse_unstable,
   RemoveConfigExtensionRequest_unstable,
+  RemoveMarketplaceRequest_unstable,
   RemoveSessionExtensionRequest_unstable,
   RenameSessionRequest_unstable,
   RequestRecipeParams_unstable,
@@ -179,6 +189,7 @@ import type {
   ScanRecipeResponse_unstable,
   ScheduleRecipeRequest_unstable,
   SetConfigExtensionEnabledRequest_unstable,
+  SetPluginEnabledRequest_unstable,
   SetRecipeSlashCommandRequest_unstable,
   SetSessionSystemPromptRequest_unstable,
   SetToolPermissionsRequest_unstable,
@@ -190,6 +201,7 @@ import type {
   TruncateSessionConversationRequest_unstable,
   UnarchiveSessionRequest_unstable,
   UnpauseScheduleRequest_unstable,
+  UpdatePluginRequest_unstable,
   UpdateScheduleRequest_unstable,
   UpdateScheduleResponse_unstable,
   UpdateSessionProjectRequest_unstable,
@@ -201,6 +213,7 @@ import {
   zAppsExportResponse_unstable,
   zAppsImportResponse_unstable,
   zAppsListResponse_unstable,
+  zBrowseMarketplaceResponse_unstable,
   zCanonicalModelInfoResponse_unstable,
   zConfigReadAllResponse_unstable,
   zConfigReadResponse_unstable,
@@ -231,8 +244,11 @@ import {
   zImportSessionResponse_unstable,
   zImportSourcesResponse_unstable,
   zInspectRunningJobResponse_unstable,
+  zInstalledPluginResult_unstable,
   zKillRunningJobResponse_unstable,
   zListAgentMentionsResponse_unstable,
+  zListInstalledPluginsResponse_unstable,
+  zListMarketplacesResponse_unstable,
   zListPromptsResponse_unstable,
   zListProvidersResponse_unstable,
   zListRecipesResponse_unstable,
@@ -514,6 +530,84 @@ export class GooseExtClient {
     return zGetSessionExtensionsResponse_unstable.parse(
       raw,
     ) as GetSessionExtensionsResponse_unstable;
+  }
+
+  async marketplaceList_unstable(
+    params: ListMarketplacesRequest_unstable,
+  ): Promise<ListMarketplacesResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/marketplace/list",
+      params,
+    );
+    return zListMarketplacesResponse_unstable.parse(
+      raw,
+    ) as ListMarketplacesResponse_unstable;
+  }
+
+  async marketplaceAdd_unstable(
+    params: AddMarketplaceRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/marketplace/add", params);
+  }
+
+  async marketplaceRemove_unstable(
+    params: RemoveMarketplaceRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/marketplace/remove", params);
+  }
+
+  async marketplaceBrowse_unstable(
+    params: BrowseMarketplaceRequest_unstable,
+  ): Promise<BrowseMarketplaceResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/marketplace/browse",
+      params,
+    );
+    return zBrowseMarketplaceResponse_unstable.parse(
+      raw,
+    ) as BrowseMarketplaceResponse_unstable;
+  }
+
+  async marketplaceInstall_unstable(
+    params: InstallMarketplacePluginRequest_unstable,
+  ): Promise<InstalledPluginResult_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/marketplace/install",
+      params,
+    );
+    return zInstalledPluginResult_unstable.parse(
+      raw,
+    ) as InstalledPluginResult_unstable;
+  }
+
+  async pluginsList_unstable(
+    params: ListInstalledPluginsRequest_unstable,
+  ): Promise<ListInstalledPluginsResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/plugins/list",
+      params,
+    );
+    return zListInstalledPluginsResponse_unstable.parse(
+      raw,
+    ) as ListInstalledPluginsResponse_unstable;
+  }
+
+  async pluginsSetEnabled_unstable(
+    params: SetPluginEnabledRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/plugins/set-enabled", params);
+  }
+
+  async pluginsUpdate_unstable(
+    params: UpdatePluginRequest_unstable,
+  ): Promise<InstalledPluginResult_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/plugins/update",
+      params,
+    );
+    return zInstalledPluginResult_unstable.parse(
+      raw,
+    ) as InstalledPluginResult_unstable;
   }
 
   async providersList_unstable(

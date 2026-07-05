@@ -1,0 +1,180 @@
+# Review package: 8a6d5791a..96d55ba8c
+
+## Commits
+96d55ba8c feat(plugins): list_installed_plugins with enabled/updatable state
+
+## Files changed
+ crates/goose/src/plugins/discovery.rs |  7 +++
+ crates/goose/src/plugins/mod.rs       | 91 +++++++++++++++++++++++++++++++++++
+ 2 files changed, 98 insertions(+)
+
+## Diff
+diff --git a/crates/goose/src/plugins/discovery.rs b/crates/goose/src/plugins/discovery.rs
+index cdd80a652..08d98f0f6 100644
+--- a/crates/goose/src/plugins/discovery.rs
++++ b/crates/goose/src/plugins/discovery.rs
+@@ -112,20 +112,27 @@ fn filter_by_config(plugins: Vec<DiscoveredPlugin>, config: &Config) -> Vec<Disc
+ 
+     if dirty {
+         if let Err(e) = config.set_param(PLUGINS_CONFIG_KEY, entries) {
+             tracing::warn!(error = %e, "Failed to persist plugin config entries");
+         }
+     }
+ 
+     enabled
+ }
+ 
++/// Read the `plugins` enable-map from config.yaml as path -> enabled.
++pub(crate) fn plugin_enabled_map(config: &Config) -> HashMap<String, bool> {
++    let entries: HashMap<String, PluginConfigEntry> =
++        config.get_param(PLUGINS_CONFIG_KEY).unwrap_or_default();
++    entries.into_iter().map(|(k, v)| (k, v.enabled)).collect()
++}
++
+ fn is_enabled(plugin_name: &str, scoped_settings: &[(SettingsScope, PluginSettings)]) -> bool {
+     for scope in [
+         SettingsScope::Local,
+         SettingsScope::Project,
+         SettingsScope::User,
+     ] {
+         let Some(settings) = scoped_settings
+             .iter()
+             .find_map(|(s, settings)| (*s == scope).then_some(settings))
+         else {
+diff --git a/crates/goose/src/plugins/mod.rs b/crates/goose/src/plugins/mod.rs
+index c01584d8c..e2045366f 100644
+--- a/crates/goose/src/plugins/mod.rs
++++ b/crates/goose/src/plugins/mod.rs
+@@ -79,20 +79,78 @@ struct InstallMetadata {
+     source: String,
+     source_type: String,
+     #[allow(dead_code)]
+     format: String,
+     #[serde(default)]
+     auto_update: bool,
+     #[serde(default)]
+     last_update_check: Option<DateTime<Utc>>,
+ }
+ 
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct InstalledPlugin {
++    pub name: String,
++    pub version: String,
++    pub source: String,
++    pub enabled: bool,
++    pub auto_update: bool,
++    pub updatable: bool,
++}
++
++pub fn list_installed_plugins() -> Vec<InstalledPlugin> {
++    list_installed_plugins_at_root(&plugin_install_dir(), crate::config::Config::global())
++}
++
++fn list_installed_plugins_at_root(
++    root: &Path,
++    config: &crate::config::Config,
++) -> Vec<InstalledPlugin> {
++    let enabled_map = crate::plugins::discovery::plugin_enabled_map(config);
++    let entries = match fs::read_dir(root) {
++        Ok(e) => e,
++        Err(_) => return Vec::new(),
++    };
++    let mut out = Vec::new();
++    for entry in entries.flatten() {
++        let dir = entry.path();
++        if !dir.is_dir() {
++            continue;
++        }
++        let name = match dir.file_name().and_then(|n| n.to_str()) {
++            Some(n) => n.to_string(),
++            None => continue,
++        };
++        let version = formats::open_plugins::read_manifest(&dir, "")
++            .ok()
++            .and_then(|m| m.version)
++            .unwrap_or_else(|| "unknown".to_string());
++        let (source, auto_update, updatable) = match read_install_metadata(&dir) {
++            Ok(m) => (m.source, m.auto_update, m.source_type == "git"),
++            Err(_) => (String::new(), false, false),
++        };
++        let enabled = enabled_map
++            .get(&dir.to_string_lossy().to_string())
++            .copied()
++            .unwrap_or(true);
++        out.push(InstalledPlugin {
++            name,
++            version,
++            source,
++            enabled,
++            auto_update,
++            updatable,
++        });
++    }
++    out.sort_by(|a, b| a.name.cmp(&b.name));
++    out
++}
++
+ pub fn installed_plugin_skill_dirs() -> Vec<PathBuf> {
+     let plugins_dir = plugin_install_dir();
+     for update in auto_update_plugins_at_root(Utc::now(), &plugins_dir) {
+         if let Err(err) = update.result {
+             warn!(
+                 "Failed to auto-update plugin '{}': {}. Using currently installed version.",
+                 update.name, err
+             );
+         }
+     }
+@@ -465,20 +523,53 @@ fn copy_dir_all(source: &Path, destination: &Path) -> Result<()> {
+         }
+     }
+ 
+     Ok(())
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn lists_installed_plugins_with_state() {
++        let tmp = tempfile::tempdir().unwrap();
++        let root = tmp.path().join("plugins");
++        let dir = root.join("demo");
++        std::fs::create_dir_all(dir.join(".claude-plugin")).unwrap();
++        std::fs::write(
++            dir.join(".claude-plugin/plugin.json"),
++            r#"{"name":"demo","version":"2.0.0","description":"d"}"#,
++        )
++        .unwrap();
++        std::fs::write(
++            dir.join(INSTALL_METADATA),
++            r#"{"source":"m:demo","source_type":"git","format":"claude","auto_update":true}"#,
++        )
++        .unwrap();
++        let cfg = crate::config::Config::new(tmp.path().join("config.yaml"), "k").unwrap();
++        // mark demo disabled via the config.yaml plugins map (keyed by path)
++        let key = dir.to_string_lossy().to_string();
++        cfg.set_param("plugins", serde_json::json!({ key: { "enabled": false } }))
++            .unwrap();
++
++        let list = list_installed_plugins_at_root(&root, &cfg);
++        assert_eq!(list.len(), 1);
++        let p = &list[0];
++        assert_eq!(p.name, "demo");
++        assert_eq!(p.version, "2.0.0");
++        assert_eq!(p.source, "m:demo");
++        assert!(p.auto_update);
++        assert!(p.updatable); // source_type == "git"
++        assert!(!p.enabled); // disabled in config map
++    }
++
+     #[test]
+     fn rejects_repo_without_supported_manifest() {
+         let install_root = tempfile::tempdir().unwrap();
+         let repo = tempfile::tempdir().unwrap();
+ 
+         let err = install_from_checkout_at_root(
+             "https://example.invalid/repo.git",
+             repo.path(),
+             install_root.path(),
+             &PluginInstallOptions::default(),

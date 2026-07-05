@@ -1598,6 +1598,280 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/session/extensions/list"
     },
+    "ListMarketplacesRequest_unstable": {
+      "type": "object",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/marketplace/list"
+    },
+    "ListMarketplacesResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "marketplaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MarketplaceSourceInfo"
+          }
+        }
+      },
+      "required": [
+        "marketplaces"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/marketplace/list"
+    },
+    "MarketplaceSourceInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "location",
+        "enabled"
+      ]
+    },
+    "AddMarketplaceRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "location"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/marketplace/add"
+    },
+    "RemoveMarketplaceRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/marketplace/remove"
+    },
+    "BrowseMarketplaceRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/marketplace/browse"
+    },
+    "BrowseMarketplaceResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "plugins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CatalogPluginInfo"
+          }
+        }
+      },
+      "required": [
+        "plugins"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/marketplace/browse"
+    },
+    "CatalogPluginInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "installable": {
+          "type": "boolean"
+        },
+        "sourceKind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "installable",
+        "sourceKind"
+      ]
+    },
+    "InstallMarketplacePluginRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "marketplace": {
+          "type": "string"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "autoUpdate": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "marketplace",
+        "plugin"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/marketplace/install"
+    },
+    "InstalledPluginResult_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hasHooks": {
+          "type": "boolean"
+        },
+        "hasMcp": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "format",
+        "source",
+        "skills",
+        "hasHooks",
+        "hasMcp"
+      ],
+      "x-side": "agent"
+    },
+    "ListInstalledPluginsRequest_unstable": {
+      "type": "object",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/plugins/list"
+    },
+    "ListInstalledPluginsResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "plugins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InstalledPluginInfo"
+          }
+        }
+      },
+      "required": [
+        "plugins"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/plugins/list"
+    },
+    "InstalledPluginInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "autoUpdate": {
+          "type": "boolean"
+        },
+        "updatable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "source",
+        "enabled",
+        "autoUpdate",
+        "updatable"
+      ]
+    },
+    "SetPluginEnabledRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "enabled"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/plugins/set-enabled"
+    },
+    "UpdatePluginRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/plugins/update"
+    },
     "ListProvidersRequest_unstable": {
       "type": "object",
       "properties": {
@@ -6934,6 +7208,78 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/ListMarketplacesRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/marketplace/list",
+                  "title": "ListMarketplacesRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/AddMarketplaceRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/marketplace/add",
+                  "title": "AddMarketplaceRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/RemoveMarketplaceRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/marketplace/remove",
+                  "title": "RemoveMarketplaceRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/BrowseMarketplaceRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/marketplace/browse",
+                  "title": "BrowseMarketplaceRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/InstallMarketplacePluginRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/marketplace/install",
+                  "title": "InstallMarketplacePluginRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ListInstalledPluginsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/plugins/list",
+                  "title": "ListInstalledPluginsRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SetPluginEnabledRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/plugins/set-enabled",
+                  "title": "SetPluginEnabledRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/UpdatePluginRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/plugins/update",
+                  "title": "UpdatePluginRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/ListProvidersRequest_unstable"
                     }
                   ],
@@ -7871,6 +8217,38 @@
                         }
                       ],
                       "title": "GetSessionExtensionsResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListMarketplacesResponse_unstable"
+                        }
+                      ],
+                      "title": "ListMarketplacesResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/BrowseMarketplaceResponse_unstable"
+                        }
+                      ],
+                      "title": "BrowseMarketplaceResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/InstalledPluginResult_unstable"
+                        }
+                      ],
+                      "title": "InstalledPluginResult_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListInstalledPluginsResponse_unstable"
+                        }
+                      ],
+                      "title": "ListInstalledPluginsResponse_unstable"
                     },
                     {
                       "allOf": [

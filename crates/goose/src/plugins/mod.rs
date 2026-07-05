@@ -86,6 +86,75 @@ struct InstallMetadata {
     last_update_check: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledPlugin {
+    pub name: String,
+    pub version: String,
+    pub source: String,
+    pub enabled: bool,
+    pub auto_update: bool,
+    pub updatable: bool,
+}
+
+pub fn list_installed_plugins() -> Vec<InstalledPlugin> {
+    list_installed_plugins_at_root(&plugin_install_dir(), crate::config::Config::global())
+}
+
+fn list_installed_plugins_at_root(
+    root: &Path,
+    config: &crate::config::Config,
+) -> Vec<InstalledPlugin> {
+    let enabled_map = crate::plugins::discovery::plugin_enabled_map(config);
+    let entries = match fs::read_dir(root) {
+        Ok(e) => e,
+        Err(_) => return Vec::new(),
+    };
+    let mut out = Vec::new();
+    for entry in entries.flatten() {
+        let dir = entry.path();
+        if !dir.is_dir() {
+            continue;
+        }
+        let name = match dir.file_name().and_then(|n| n.to_str()) {
+            Some(n) => n.to_string(),
+            None => continue,
+        };
+        let version = formats::open_plugins::read_manifest(&dir, "")
+            .ok()
+            .and_then(|m| m.version)
+            .unwrap_or_else(|| "unknown".to_string());
+        let (source, auto_update, updatable) = match read_install_metadata(&dir) {
+            Ok(m) => (m.source, m.auto_update, m.source_type == "git"),
+            Err(_) => (String::new(), false, false),
+        };
+        let enabled = enabled_map
+            .get(&dir.to_string_lossy().to_string())
+            .copied()
+            .unwrap_or(true);
+        out.push(InstalledPlugin {
+            name,
+            version,
+            source,
+            enabled,
+            auto_update,
+            updatable,
+        });
+    }
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    out
+}
+
+/// Toggle a plugin's enabled state in the `plugins` map in `config.yaml`,
+/// keyed by the plugin's absolute install directory path.
+pub fn set_plugin_enabled(name: &str, enabled: bool) -> Result<()> {
+    let path = plugin_install_dir().join(name);
+    crate::plugins::discovery::set_plugin_enabled_path(
+        crate::config::Config::global(),
+        &path.to_string_lossy(),
+        enabled,
+    )
+}
+
 pub fn installed_plugin_skill_dirs() -> Vec<PathBuf> {
     let plugins_dir = plugin_install_dir();
     for update in auto_update_plugins_at_root(Utc::now(), &plugins_dir) {
@@ -471,6 +540,39 @@ fn copy_dir_all(source: &Path, destination: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lists_installed_plugins_with_state() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("plugins");
+        let dir = root.join("demo");
+        std::fs::create_dir_all(dir.join(".claude-plugin")).unwrap();
+        std::fs::write(
+            dir.join(".claude-plugin/plugin.json"),
+            r#"{"name":"demo","version":"2.0.0","description":"d"}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join(INSTALL_METADATA),
+            r#"{"source":"m:demo","source_type":"git","format":"claude","auto_update":true}"#,
+        )
+        .unwrap();
+        let cfg = crate::config::Config::new(tmp.path().join("config.yaml"), "k").unwrap();
+        // mark demo disabled via the config.yaml plugins map (keyed by path)
+        let key = dir.to_string_lossy().to_string();
+        cfg.set_param("plugins", serde_json::json!({ key: { "enabled": false } }))
+            .unwrap();
+
+        let list = list_installed_plugins_at_root(&root, &cfg);
+        assert_eq!(list.len(), 1);
+        let p = &list[0];
+        assert_eq!(p.name, "demo");
+        assert_eq!(p.version, "2.0.0");
+        assert_eq!(p.source, "m:demo");
+        assert!(p.auto_update);
+        assert!(p.updatable); // source_type == "git"
+        assert!(!p.enabled); // disabled in config map
+    }
 
     #[test]
     fn rejects_repo_without_supported_manifest() {
