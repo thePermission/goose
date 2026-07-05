@@ -17,3 +17,5 @@ Task 4: complete (commit dd820e6..4f671bc, review Approved — ready to merge). 
 == PROOSE RELEASE CI COMPLETE at 4f671bc. Ready to merge to corporate. REAL end-to-end proof still pending (needs a push): tag `proose-v*` or run workflow_dispatch -> confirm Release gets 6 assets. AlmaLinux dnf list to be confirmed by that first run.
 
 FIRST CI RUN (run 28749383866, tag proose-v0.0.1-test): build-ubuntu-deb ✓, build-windows-zip ✓, build-almalinux-rpm ✗ (cargo build: llama-cpp-sys-2 bindgen needs libclang + llama.cpp needs cmake — absent in almalinux:9), release skipped. FIX: added `clang clang-devel cmake` to alma dnf list (validated in local docker almalinux:9: /usr/lib64/libclang.so present, cmake 3.31.8, clang 21.1.8). Re-triggering; expect all 3 green + 6-asset release.
+
+SECOND CI RUN (run 28750943123, after clang/cmake fix 5de2338cb): ALL 4 JOBS SUCCESS — build-ubuntu-deb ✓, build-windows-zip ✓, build-almalinux-rpm ✓, release ✓. GitHub Release published exactly 6 assets (deb, rpm, windows zip + 3 CLI binaries ubuntu/alma9/windows). PIPELINE VERIFIED END-TO-END. Test release + tag proose-v0.0.1-test deleted (cleanup).
