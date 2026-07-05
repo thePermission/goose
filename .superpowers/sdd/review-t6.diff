@@ -1,0 +1,1155 @@
+# Review package: 18aa5b4ac..f4f49aece04ee1bc24eaf87317ad59ca18e3eb94
+
+## Commits
+f4f49aece chore(acp): regenerate schema + SDK for marketplace/plugins methods
+
+## Files changed
+ crates/goose/acp-meta.json         |  40 ++++
+ crates/goose/acp-schema.json       | 378 +++++++++++++++++++++++++++++++++++++
+ ui/sdk/src/generated/client.gen.ts |  94 +++++++++
+ ui/sdk/src/generated/index.ts      |  42 ++++-
+ ui/sdk/src/generated/types.gen.ts  |  86 ++++++++-
+ ui/sdk/src/generated/zod.gen.ts    |  93 +++++++++
+ 6 files changed, 730 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/crates/goose/acp-meta.json b/crates/goose/acp-meta.json
+index 11260c7dc..61f13e14b 100644
+--- a/crates/goose/acp-meta.json
++++ b/crates/goose/acp-meta.json
+@@ -113,20 +113,60 @@
+     {
+       "method": "_goose/unstable/config/extensions/set-enabled",
+       "requestType": "SetConfigExtensionEnabledRequest_unstable",
+       "responseType": "EmptyResponse"
+     },
+     {
+       "method": "_goose/unstable/session/extensions/list",
+       "requestType": "GetSessionExtensionsRequest_unstable",
+       "responseType": "GetSessionExtensionsResponse_unstable"
+     },
++    {
++      "method": "_goose/unstable/marketplace/list",
++      "requestType": "ListMarketplacesRequest_unstable",
++      "responseType": "ListMarketplacesResponse_unstable"
++    },
++    {
++      "method": "_goose/unstable/marketplace/add",
++      "requestType": "AddMarketplaceRequest_unstable",
++      "responseType": "EmptyResponse"
++    },
++    {
++      "method": "_goose/unstable/marketplace/remove",
++      "requestType": "RemoveMarketplaceRequest_unstable",
++      "responseType": "EmptyResponse"
++    },
++    {
++      "method": "_goose/unstable/marketplace/browse",
++      "requestType": "BrowseMarketplaceRequest_unstable",
++      "responseType": "BrowseMarketplaceResponse_unstable"
++    },
++    {
++      "method": "_goose/unstable/marketplace/install",
++      "requestType": "InstallMarketplacePluginRequest_unstable",
++      "responseType": "InstalledPluginResult_unstable"
++    },
++    {
++      "method": "_goose/unstable/plugins/list",
++      "requestType": "ListInstalledPluginsRequest_unstable",
++      "responseType": "ListInstalledPluginsResponse_unstable"
++    },
++    {
++      "method": "_goose/unstable/plugins/set-enabled",
++      "requestType": "SetPluginEnabledRequest_unstable",
++      "responseType": "EmptyResponse"
++    },
++    {
++      "method": "_goose/unstable/plugins/update",
++      "requestType": "UpdatePluginRequest_unstable",
++      "responseType": "InstalledPluginResult_unstable"
++    },
+     {
+       "method": "_goose/unstable/providers/list",
+       "requestType": "ListProvidersRequest_unstable",
+       "responseType": "ListProvidersResponse_unstable"
+     },
+     {
+       "method": "_goose/unstable/providers/supported-models/list",
+       "requestType": "ProviderSupportedModelsListRequest_unstable",
+       "responseType": "ProviderSupportedModelsListResponse_unstable"
+     },
+diff --git a/crates/goose/acp-schema.json b/crates/goose/acp-schema.json
+index f4507f5cf..10f564d15 100644
+--- a/crates/goose/acp-schema.json
++++ b/crates/goose/acp-schema.json
+@@ -1591,20 +1591,294 @@
+             "$ref": "#/$defs/GooseExtension"
+           }
+         }
+       },
+       "required": [
+         "extensions"
+       ],
+       "x-side": "agent",
+       "x-method": "_goose/unstable/session/extensions/list"
+     },
++    "ListMarketplacesRequest_unstable": {
++      "type": "object",
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/list"
++    },
++    "ListMarketplacesResponse_unstable": {
++      "type": "object",
++      "properties": {
++        "marketplaces": {
++          "type": "array",
++          "items": {
++            "$ref": "#/$defs/MarketplaceSourceInfo"
++          }
++        }
++      },
++      "required": [
++        "marketplaces"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/list"
++    },
++    "MarketplaceSourceInfo": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        },
++        "kind": {
++          "type": "string"
++        },
++        "location": {
++          "type": "string"
++        },
++        "enabled": {
++          "type": "boolean"
++        }
++      },
++      "required": [
++        "name",
++        "kind",
++        "location",
++        "enabled"
++      ]
++    },
++    "AddMarketplaceRequest_unstable": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        },
++        "kind": {
++          "type": "string"
++        },
++        "location": {
++          "type": "string"
++        }
++      },
++      "required": [
++        "name",
++        "kind",
++        "location"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/add"
++    },
++    "RemoveMarketplaceRequest_unstable": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        }
++      },
++      "required": [
++        "name"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/remove"
++    },
++    "BrowseMarketplaceRequest_unstable": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        }
++      },
++      "required": [
++        "name"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/browse"
++    },
++    "BrowseMarketplaceResponse_unstable": {
++      "type": "object",
++      "properties": {
++        "plugins": {
++          "type": "array",
++          "items": {
++            "$ref": "#/$defs/CatalogPluginInfo"
++          }
++        }
++      },
++      "required": [
++        "plugins"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/browse"
++    },
++    "CatalogPluginInfo": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        },
++        "description": {
++          "type": [
++            "string",
++            "null"
++          ]
++        },
++        "installable": {
++          "type": "boolean"
++        },
++        "sourceKind": {
++          "type": "string"
++        }
++      },
++      "required": [
++        "name",
++        "installable",
++        "sourceKind"
++      ]
++    },
++    "InstallMarketplacePluginRequest_unstable": {
++      "type": "object",
++      "properties": {
++        "marketplace": {
++          "type": "string"
++        },
++        "plugin": {
++          "type": "string"
++        },
++        "autoUpdate": {
++          "type": "boolean",
++          "default": false
++        }
++      },
++      "required": [
++        "marketplace",
++        "plugin"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/marketplace/install"
++    },
++    "InstalledPluginResult_unstable": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        },
++        "version": {
++          "type": "string"
++        },
++        "format": {
++          "type": "string"
++        },
++        "source": {
++          "type": "string"
++        },
++        "skills": {
++          "type": "array",
++          "items": {
++            "type": "string"
++          }
++        },
++        "hasHooks": {
++          "type": "boolean"
++        },
++        "hasMcp": {
++          "type": "boolean"
++        }
++      },
++      "required": [
++        "name",
++        "version",
++        "format",
++        "source",
++        "skills",
++        "hasHooks",
++        "hasMcp"
++      ],
++      "x-side": "agent"
++    },
++    "ListInstalledPluginsRequest_unstable": {
++      "type": "object",
++      "x-side": "agent",
++      "x-method": "_goose/unstable/plugins/list"
++    },
++    "ListInstalledPluginsResponse_unstable": {
++      "type": "object",
++      "properties": {
++        "plugins": {
++          "type": "array",
++          "items": {
++            "$ref": "#/$defs/InstalledPluginInfo"
++          }
++        }
++      },
++      "required": [
++        "plugins"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/plugins/list"
++    },
++    "InstalledPluginInfo": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        },
++        "version": {
++          "type": "string"
++        },
++        "source": {
++          "type": "string"
++        },
++        "enabled": {
++          "type": "boolean"
++        },
++        "autoUpdate": {
++          "type": "boolean"
++        },
++        "updatable": {
++          "type": "boolean"
++        }
++      },
++      "required": [
++        "name",
++        "version",
++        "source",
++        "enabled",
++        "autoUpdate",
++        "updatable"
++      ]
++    },
++    "SetPluginEnabledRequest_unstable": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        },
++        "enabled": {
++          "type": "boolean"
++        }
++      },
++      "required": [
++        "name",
++        "enabled"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/plugins/set-enabled"
++    },
++    "UpdatePluginRequest_unstable": {
++      "type": "object",
++      "properties": {
++        "name": {
++          "type": "string"
++        }
++      },
++      "required": [
++        "name"
++      ],
++      "x-side": "agent",
++      "x-method": "_goose/unstable/plugins/update"
++    },
+     "ListProvidersRequest_unstable": {
+       "type": "object",
+       "properties": {
+         "providerIds": {
+           "type": "array",
+           "items": {
+             "type": "string"
+           },
+           "description": "Only return entries for these providers. Empty means all.",
+           "default": []
+@@ -6924,20 +7198,92 @@
+                 },
+                 {
+                   "allOf": [
+                     {
+                       "$ref": "#/$defs/GetSessionExtensionsRequest_unstable"
+                     }
+                   ],
+                   "description": "Params for _goose/unstable/session/extensions/list",
+                   "title": "GetSessionExtensionsRequest_unstable"
+                 },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/ListMarketplacesRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/marketplace/list",
++                  "title": "ListMarketplacesRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/AddMarketplaceRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/marketplace/add",
++                  "title": "AddMarketplaceRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/RemoveMarketplaceRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/marketplace/remove",
++                  "title": "RemoveMarketplaceRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/BrowseMarketplaceRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/marketplace/browse",
++                  "title": "BrowseMarketplaceRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/InstallMarketplacePluginRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/marketplace/install",
++                  "title": "InstallMarketplacePluginRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/ListInstalledPluginsRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/plugins/list",
++                  "title": "ListInstalledPluginsRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/SetPluginEnabledRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/plugins/set-enabled",
++                  "title": "SetPluginEnabledRequest_unstable"
++                },
++                {
++                  "allOf": [
++                    {
++                      "$ref": "#/$defs/UpdatePluginRequest_unstable"
++                    }
++                  ],
++                  "description": "Params for _goose/unstable/plugins/update",
++                  "title": "UpdatePluginRequest_unstable"
++                },
+                 {
+                   "allOf": [
+                     {
+                       "$ref": "#/$defs/ListProvidersRequest_unstable"
+                     }
+                   ],
+                   "description": "Params for _goose/unstable/providers/list",
+                   "title": "ListProvidersRequest_unstable"
+                 },
+                 {
+@@ -7865,20 +8211,52 @@
+                       "title": "GetAvailableExtensionsResponse_unstable"
+                     },
+                     {
+                       "allOf": [
+                         {
+                           "$ref": "#/$defs/GetSessionExtensionsResponse_unstable"
+                         }
+                       ],
+                       "title": "GetSessionExtensionsResponse_unstable"
+                     },
++                    {
++                      "allOf": [
++                        {
++                          "$ref": "#/$defs/ListMarketplacesResponse_unstable"
++                        }
++                      ],
++                      "title": "ListMarketplacesResponse_unstable"
++                    },
++                    {
++                      "allOf": [
++                        {
++                          "$ref": "#/$defs/BrowseMarketplaceResponse_unstable"
++                        }
++                      ],
++                      "title": "BrowseMarketplaceResponse_unstable"
++                    },
++                    {
++                      "allOf": [
++                        {
++                          "$ref": "#/$defs/InstalledPluginResult_unstable"
++                        }
++                      ],
++                      "title": "InstalledPluginResult_unstable"
++                    },
++                    {
++                      "allOf": [
++                        {
++                          "$ref": "#/$defs/ListInstalledPluginsResponse_unstable"
++                        }
++                      ],
++                      "title": "ListInstalledPluginsResponse_unstable"
++                    },
+                     {
+                       "allOf": [
+                         {
+                           "$ref": "#/$defs/ListProvidersResponse_unstable"
+                         }
+                       ],
+                       "title": "ListProvidersResponse_unstable"
+                     },
+                     {
+                       "allOf": [
+diff --git a/ui/sdk/src/generated/client.gen.ts b/ui/sdk/src/generated/client.gen.ts
+index 0d8ac11a2..83c9cba13 100644
+--- a/ui/sdk/src/generated/client.gen.ts
++++ b/ui/sdk/src/generated/client.gen.ts
+@@ -3,28 +3,31 @@
+ export interface ExtMethodProvider {
+   extMethod(
+     method: string,
+     params: Record<string, unknown>,
+   ): Promise<Record<string, unknown>>;
+ }
+ 
+ import type { Client } from "@agentclientprotocol/sdk";
+ import type {
+   AddConfigExtensionRequest_unstable,
++  AddMarketplaceRequest_unstable,
+   AddSessionExtensionRequest_unstable,
+   AppsExportRequest_unstable,
+   AppsExportResponse_unstable,
+   AppsImportRequest_unstable,
+   AppsImportResponse_unstable,
+   AppsListRequest_unstable,
+   AppsListResponse_unstable,
+   ArchiveSessionRequest_unstable,
++  BrowseMarketplaceRequest_unstable,
++  BrowseMarketplaceResponse_unstable,
+   CanonicalModelInfoRequest_unstable,
+   CanonicalModelInfoResponse_unstable,
+   ConfigReadAllRequest_unstable,
+   ConfigReadAllResponse_unstable,
+   ConfigReadRequest_unstable,
+   ConfigReadResponse_unstable,
+   ConfigRemoveRequest_unstable,
+   ConfigUpsertRequest_unstable,
+   CreateScheduleRequest_unstable,
+   CreateScheduleResponse_unstable,
+@@ -84,24 +87,30 @@ import type {
+   GetToolsResponse_unstable,
+   GooseSessionNotification_unstable,
+   GooseToolCallRequest_unstable,
+   GooseToolCallResponse_unstable,
+   ImportSessionRequest_unstable,
+   ImportSessionResponse_unstable,
+   ImportSourcesRequest_unstable,
+   ImportSourcesResponse_unstable,
+   InspectRunningJobRequest_unstable,
+   InspectRunningJobResponse_unstable,
++  InstallMarketplacePluginRequest_unstable,
++  InstalledPluginResult_unstable,
+   KillRunningJobRequest_unstable,
+   KillRunningJobResponse_unstable,
+   ListAgentMentionsRequest_unstable,
+   ListAgentMentionsResponse_unstable,
++  ListInstalledPluginsRequest_unstable,
++  ListInstalledPluginsResponse_unstable,
++  ListMarketplacesRequest_unstable,
++  ListMarketplacesResponse_unstable,
+   ListPromptsRequest_unstable,
+   ListPromptsResponse_unstable,
+   ListProvidersRequest_unstable,
+   ListProvidersResponse_unstable,
+   ListRecipesRequest_unstable,
+   ListRecipesResponse_unstable,
+   ListScheduleSessionsRequest_unstable,
+   ListScheduleSessionsResponse_unstable,
+   ListSchedulesRequest_unstable,
+   ListSchedulesResponse_unstable,
+@@ -159,55 +168,59 @@ import type {
+   ProviderSupportedModelsListRequest_unstable,
+   ProviderSupportedModelsListResponse_unstable,
+   ReadResourceRequest_unstable,
+   ReadResourceResponse_unstable,
+   RecipeParamsResponse_unstable,
+   RecipeToYamlRequest_unstable,
+   RecipeToYamlResponse_unstable,
+   RefreshProviderInventoryRequest_unstable,
+   RefreshProviderInventoryResponse_unstable,
+   RemoveConfigExtensionRequest_unstable,
++  RemoveMarketplaceRequest_unstable,
+   RemoveSessionExtensionRequest_unstable,
+   RenameSessionRequest_unstable,
+   RequestRecipeParams_unstable,
+   ResetPromptRequest_unstable,
+   RunScheduleNowRequest_unstable,
+   RunScheduleNowResponse_unstable,
+   SavePromptRequest_unstable,
+   SaveRecipeRequest_unstable,
+   SaveRecipeResponse_unstable,
+   ScanRecipeRequest_unstable,
+   ScanRecipeResponse_unstable,
+   ScheduleRecipeRequest_unstable,
+   SetConfigExtensionEnabledRequest_unstable,
++  SetPluginEnabledRequest_unstable,
+   SetRecipeSlashCommandRequest_unstable,
+   SetSessionSystemPromptRequest_unstable,
+   SetToolPermissionsRequest_unstable,
+   SetToolPermissionsResponse_unstable,
+   ShareSessionNostrRequest_unstable,
+   ShareSessionNostrResponse_unstable,
+   SteerSessionRequest_unstable,
+   SteerSessionResponse_unstable,
+   TruncateSessionConversationRequest_unstable,
+   UnarchiveSessionRequest_unstable,
+   UnpauseScheduleRequest_unstable,
++  UpdatePluginRequest_unstable,
+   UpdateScheduleRequest_unstable,
+   UpdateScheduleResponse_unstable,
+   UpdateSessionProjectRequest_unstable,
+   UpdateSourceRequest_unstable,
+   UpdateSourceResponse_unstable,
+   UpdateWorkingDirRequest_unstable,
+ } from './types.gen.js';
+ import {
+   zAppsExportResponse_unstable,
+   zAppsImportResponse_unstable,
+   zAppsListResponse_unstable,
++  zBrowseMarketplaceResponse_unstable,
+   zCanonicalModelInfoResponse_unstable,
+   zConfigReadAllResponse_unstable,
+   zConfigReadResponse_unstable,
+   zCreateScheduleResponse_unstable,
+   zCreateSourceResponse_unstable,
+   zCustomProviderCreateResponse_unstable,
+   zCustomProviderDeleteResponse_unstable,
+   zCustomProviderReadResponse_unstable,
+   zCustomProviderUpdateResponse_unstable,
+   zDecodeRecipeResponse_unstable,
+@@ -224,22 +237,25 @@ import {
+   zGetConfigExtensionsResponse_unstable,
+   zGetPromptResponse_unstable,
+   zGetSessionExtensionsResponse_unstable,
+   zGetSessionInfoResponse_unstable,
+   zGetToolsResponse_unstable,
+   zGooseSessionNotification_unstable,
+   zGooseToolCallResponse_unstable,
+   zImportSessionResponse_unstable,
+   zImportSourcesResponse_unstable,
+   zInspectRunningJobResponse_unstable,
++  zInstalledPluginResult_unstable,
+   zKillRunningJobResponse_unstable,
+   zListAgentMentionsResponse_unstable,
++  zListInstalledPluginsResponse_unstable,
++  zListMarketplacesResponse_unstable,
+   zListPromptsResponse_unstable,
+   zListProvidersResponse_unstable,
+   zListRecipesResponse_unstable,
+   zListScheduleSessionsResponse_unstable,
+   zListSchedulesResponse_unstable,
+   zListSlashCommandsResponse_unstable,
+   zListSourcesResponse_unstable,
+   zLocalInferenceBuiltinChatTemplatesListResponse_unstable,
+   zLocalInferenceHuggingFaceRepoVariantsResponse_unstable,
+   zLocalInferenceHuggingFaceSearchResponse_unstable,
+@@ -509,20 +525,98 @@ export class GooseExtClient {
+   ): Promise<GetSessionExtensionsResponse_unstable> {
+     const raw = await this.conn.extMethod(
+       "_goose/unstable/session/extensions/list",
+       params,
+     );
+     return zGetSessionExtensionsResponse_unstable.parse(
+       raw,
+     ) as GetSessionExtensionsResponse_unstable;
+   }
+ 
++  async marketplaceList_unstable(
++    params: ListMarketplacesRequest_unstable,
++  ): Promise<ListMarketplacesResponse_unstable> {
++    const raw = await this.conn.extMethod(
++      "_goose/unstable/marketplace/list",
++      params,
++    );
++    return zListMarketplacesResponse_unstable.parse(
++      raw,
++    ) as ListMarketplacesResponse_unstable;
++  }
++
++  async marketplaceAdd_unstable(
++    params: AddMarketplaceRequest_unstable,
++  ): Promise<void> {
++    await this.conn.extMethod("_goose/unstable/marketplace/add", params);
++  }
++
++  async marketplaceRemove_unstable(
++    params: RemoveMarketplaceRequest_unstable,
++  ): Promise<void> {
++    await this.conn.extMethod("_goose/unstable/marketplace/remove", params);
++  }
++
++  async marketplaceBrowse_unstable(
++    params: BrowseMarketplaceRequest_unstable,
++  ): Promise<BrowseMarketplaceResponse_unstable> {
++    const raw = await this.conn.extMethod(
++      "_goose/unstable/marketplace/browse",
++      params,
++    );
++    return zBrowseMarketplaceResponse_unstable.parse(
++      raw,
++    ) as BrowseMarketplaceResponse_unstable;
++  }
++
++  async marketplaceInstall_unstable(
++    params: InstallMarketplacePluginRequest_unstable,
++  ): Promise<InstalledPluginResult_unstable> {
++    const raw = await this.conn.extMethod(
++      "_goose/unstable/marketplace/install",
++      params,
++    );
++    return zInstalledPluginResult_unstable.parse(
++      raw,
++    ) as InstalledPluginResult_unstable;
++  }
++
++  async pluginsList_unstable(
++    params: ListInstalledPluginsRequest_unstable,
++  ): Promise<ListInstalledPluginsResponse_unstable> {
++    const raw = await this.conn.extMethod(
++      "_goose/unstable/plugins/list",
++      params,
++    );
++    return zListInstalledPluginsResponse_unstable.parse(
++      raw,
++    ) as ListInstalledPluginsResponse_unstable;
++  }
++
++  async pluginsSetEnabled_unstable(
++    params: SetPluginEnabledRequest_unstable,
++  ): Promise<void> {
++    await this.conn.extMethod("_goose/unstable/plugins/set-enabled", params);
++  }
++
++  async pluginsUpdate_unstable(
++    params: UpdatePluginRequest_unstable,
++  ): Promise<InstalledPluginResult_unstable> {
++    const raw = await this.conn.extMethod(
++      "_goose/unstable/plugins/update",
++      params,
++    );
++    return zInstalledPluginResult_unstable.parse(
++      raw,
++    ) as InstalledPluginResult_unstable;
++  }
++
+   async providersList_unstable(
+     params: ListProvidersRequest_unstable,
+   ): Promise<ListProvidersResponse_unstable> {
+     const raw = await this.conn.extMethod(
+       "_goose/unstable/providers/list",
+       params,
+     );
+     return zListProvidersResponse_unstable.parse(
+       raw,
+     ) as ListProvidersResponse_unstable;
+diff --git a/ui/sdk/src/generated/index.ts b/ui/sdk/src/generated/index.ts
+index 5cb5dec99..5a09f7490 100644
+--- a/ui/sdk/src/generated/index.ts
++++ b/ui/sdk/src/generated/index.ts
+@@ -1,13 +1,13 @@
+ // This file is auto-generated by @hey-api/openapi-ts
+ 
+-export type { AddConfigExtensionRequest_unstable, AddSessionExtensionRequest_unstable, AgentMention, Annotations, AppsExportRequest_unstable, AppsExportResponse_unstable, AppsImportRequest_unstable, AppsImportResponse_unstable, AppsListRequest_unstable, AppsListResponse_unstable, ArchiveSessionRequest_unstable, AudioContent, AvailableCommand, AvailableCommandInput, BlobResourceContents, CanonicalModelInfoDto, CanonicalModelInfoRequest_unstable, CanonicalModelInfoResponse_unstable, ConfigReadAllRequest_unstable, ConfigReadAllResponse_unstable, ConfigReadRequest_unstable, ConfigReadResponse_unstable, ConfigRemoveRequest_unstable, ConfigUpsertRequest_unstable, ContentBlock, CreateScheduleRequest_unstable, CreateScheduleResponse_unstable, CreateSourceRequest_unstable, CreateSourceResponse_unstable, CustomProviderConfigDto, CustomProviderCreateRequest_unstable, CustomProviderCreateResponse_unstable, CustomProviderDeleteRequest_unstable, CustomProviderDeleteResponse_unstable, CustomProviderReadRequest_unstable, CustomProviderReadResponse_unstable, CustomProviderUpdateRequest_unstable, CustomProviderUpdateResponse_unstable, DecodeRecipeRequest_unstable, DecodeRecipeResponse_unstable, DefaultsClearRequest_unstable, DefaultsReadRequest_unstable, DefaultsReadResponse_unstable, DefaultsSaveRequest_unstable, DeleteRecipeRequest_unstable, DeleteScheduleRequest_unstable, DeleteSessionRequest, DeleteSourceRequest_unstable, DiagnosticsGetRequest_unstable, DiagnosticsGetResponse_unstable, DiagnosticsReportLevel, DictationConfigRequest_unstable, DictationConfigResponse_unstable, DictationDownloadProgress, DictationLocalModelStatus, DictationModelCancelRequest_unstable, DictationModelDeleteRequest_unstable, DictationModelDownloadProgressRequest_unstable, DictationModelDownloadProgressResponse_unstable, DictationModelDownloadRequest_unstable, DictationModelOption, DictationModelSelectRequest_unstable, DictationModelsListRequest_unstable, DictationModelsListResponse_unstable, DictationProviderStatusEntry, DictationSecretDeleteRequest_unstable, DictationSecretSaveRequest_unstable, DictationTranscribeRequest_unstable, DictationTranscribeResponse_unstable, EmbeddedResource, EmbeddedResourceResource, EmptyResponse, EncodeRecipeRequest_unstable, EncodeRecipeResponse_unstable, EnvVariable, ExportSessionRequest_unstable, ExportSessionResponse_unstable, ExportSourceRequest_unstable, ExportSourceResponse_unstable, ExtAgentRequest, ExtAgentResponse, ExtNotification, ExtRequest, ExtResponse, GetAvailableExtensionsRequest_unstable, GetAvailableExtensionsResponse_unstable, GetConfigExtensionsRequest_unstable, GetConfigExtensionsResponse_unstable, GetPromptRequest_unstable, GetPromptResponse_unstable, GetSessionExtensionsRequest_unstable, GetSessionExtensionsResponse_unstable, GetSessionInfoRequest_unstable, GetSessionInfoResponse_unstable, GetToolsRequest_unstable, GetToolsResponse_unstable, GooseExtension, GooseExtensionEntry, GooseSessionNotification_unstable, GooseSessionUpdate, GooseToolCallRequest_unstable, GooseToolCallResponse_unstable, HttpHeader, ImageContent, ImportSessionRequest_unstable, ImportSessionResponse_unstable, ImportSourcesRequest_unstable, ImportSourcesResponse_unstable, InspectRunningJobRequest_unstable, InspectRunningJobResponse_unstable, KillRunningJobRequest_unstable, KillRunningJobResponse_unstable, ListAgentMentionsRequest_unstable, ListAgentMentionsResponse_unstable, ListPromptsRequest_unstable, ListPromptsResponse_unstable, ListProvidersRequest_unstable, ListProvidersResponse_unstable, ListRecipesRequest_unstable, ListRecipesResponse_unstable, ListScheduleSessionsRequest_unstable, ListScheduleSessionsResponse_unstable, ListSchedulesRequest_unstable, ListSchedulesResponse_unstable, ListSlashCommandsRequest_unstable, ListSlashCommandsResponse_unstable, ListSourcesRequest_unstable, ListSourcesResponse_unstable, LocalInferenceBuiltinChatTemplatesListRequest_unstable, LocalInferenceBuiltinChatTemplatesListResponse_unstable, LocalInferenceChatTemplate, LocalInferenceDownloadProgressDto, LocalInferenceDownloadState, LocalInferenceHfGgufFileDto, LocalInferenceHfModelInfoDto, LocalInferenceHfModelVariantDto, LocalInferenceHuggingFaceRepoVariantsRequest_unstable, LocalInferenceHuggingFaceRepoVariantsResponse_unstable, LocalInferenceHuggingFaceSearchRequest_unstable, LocalInferenceHuggingFaceSearchResponse_unstable, LocalInferenceModelDeleteRequest_unstable, LocalInferenceModelDownloadCancelRequest_unstable, LocalInferenceModelDownloadProgressRequest_unstable, LocalInferenceModelDownloadProgressResponse_unstable, LocalInferenceModelDownloadRequest_unstable, LocalInferenceModelDownloadResponse_unstable, LocalInferenceModelDownloadStatusDto, LocalInferenceModelDto, LocalInferenceModelSettingsDto, LocalInferenceModelSettingsReadRequest_unstable, LocalInferenceModelSettingsReadResponse_unstable, LocalInferenceModelSettingsUpdateRequest_unstable, LocalInferenceModelSettingsUpdateResponse_unstable, LocalInferenceModelsListRequest_unstable, LocalInferenceModelsListResponse_unstable, LocalInferenceSamplingConfig, LocalInferenceToolCallingMode, McpServer, McpServerAcp, McpServerAcpId, McpServerHttp, McpServerSse, McpServerStdio, OnboardingImportApplyRequest_unstable, OnboardingImportApplyResponse_unstable, OnboardingImportCandidate, OnboardingImportCounts, OnboardingImportScanRequest_unstable, OnboardingImportScanResponse_unstable, OnboardingImportSourceKind, ParseRecipeRequest_unstable, ParseRecipeResponse_unstable, PauseScheduleRequest_unstable, PreferenceKey, PreferencesReadRequest_unstable, PreferencesReadResponse_unstable, PreferencesRemoveRequest_unstable, PreferencesSaveRequest_unstable, PreferenceValue, PromptOperationResponse_unstable, PromptTemplateEntry, ProviderCatalogListRequest_unstable, ProviderCatalogListResponse_unstable, ProviderCatalogTemplateRequest_unstable, ProviderCatalogTemplateResponse_unstable, ProviderConfigAuthenticateRequest_unstable, ProviderConfigChangeResponse_unstable, ProviderConfigDeleteRequest_unstable, ProviderConfigFieldUpdate, ProviderConfigFieldValueDto, ProviderConfigKey, ProviderConfigReadRequest_unstable, ProviderConfigReadResponse_unstable, ProviderConfigSaveRequest_unstable, ProviderConfigStatusDto, ProviderConfigStatusRequest_unstable, ProviderConfigStatusResponse_unstable, ProviderInventoryEntryDto, ProviderInventoryModelDto, ProviderSecretDeleteRequest_unstable, ProviderSecretDto, ProviderSecretsListRequest_unstable, ProviderSecretsListResponse_unstable, ProviderSecretStatusDto, ProviderSecretStorageDto, ProviderSetupCatalogEntryDto, ProviderSetupCatalogListRequest_unstable, ProviderSetupCatalogListResponse_unstable, ProviderSetupCategoryDto, ProviderSetupFieldDto, ProviderSetupGroupDto, ProviderSetupMethodDto, ProviderSupportedModelsListRequest_unstable, ProviderSupportedModelsListResponse_unstable, ProviderTemplateCapabilitiesDto, ProviderTemplateCatalogEntryDto, ProviderTemplateDto, ProviderTemplateModelDto, ReadResourceRequest_unstable, ReadResourceResponse_unstable, RecipeAuthorDto, RecipeDto, RecipeExtensionDto, RecipeListEntryDto, RecipeParameterDto, RecipeParameterInputTypeDto, RecipeParameterRequirementDto, RecipeParamsAction, RecipeParamsResponse_unstable, RecipeResponseDto, RecipeRetryConfigDto, RecipeSettingsDto, RecipeSuccessCheckDto, RecipeToYamlRequest_unstable, RecipeToYamlResponse_unstable, RefreshProviderInventoryRequest_unstable, RefreshProviderInventoryResponse_unstable, RefreshProviderInventorySkipDto, RefreshProviderInventorySkipReasonDto, RemoveConfigExtensionRequest_unstable, RemoveSessionExtensionRequest_unstable, RenameSessionRequest_unstable, RequestRecipeParams_unstable, ResetPromptRequest_unstable, ResourceLink, Role, RunScheduleNowRequest_unstable, RunScheduleNowResponse_unstable, RunScheduleNowStatus, SavePromptRequest_unstable, SaveRecipeRequest_unstable, SaveRecipeResponse_unstable, ScanRecipeRequest_unstable, ScanRecipeResponse_unstable, ScheduledJobDto, ScheduleRecipeRequest_unstable, SessionId, SessionImportSource, SessionInfo, SessionSystemPromptMode, SessionUsageUpdate, SetConfigExtensionEnabledRequest_unstable, SetRecipeSlashCommandRequest_unstable, SetSessionSystemPromptRequest_unstable, SetToolPermissionsRequest_unstable, SetToolPermissionsResponse_unstable, ShareSessionNostrRequest_unstable, ShareSessionNostrResponse_unstable, SourceEntry, SourceScope, SourceType, StatusMessage, StatusMessageUpdate, SteerSessionRequest_unstable, SteerSessionResponse_unstable, SubRecipeDto, TextContent, TextResourceContents, ToolListItem, ToolPermissionEntry, ToolPermissionLevel, TruncateSessionConversationRequest_unstable, UnarchiveSessionRequest_unstable, UnpauseScheduleRequest_unstable, UnstructuredCommandInput, UpdateScheduleRequest_unstable, UpdateScheduleResponse_unstable, UpdateSessionProjectRequest_unstable, UpdateSourceRequest_unstable, UpdateSourceResponse_unstable, UpdateWorkingDirRequest_unstable } from './types.gen.js';
++export type { AddConfigExtensionRequest_unstable, AddMarketplaceRequest_unstable, AddSessionExtensionRequest_unstable, AgentMention, Annotations, AppsExportRequest_unstable, AppsExportResponse_unstable, AppsImportRequest_unstable, AppsImportResponse_unstable, AppsListRequest_unstable, AppsListResponse_unstable, ArchiveSessionRequest_unstable, AudioContent, AvailableCommand, AvailableCommandInput, BlobResourceContents, BrowseMarketplaceRequest_unstable, BrowseMarketplaceResponse_unstable, CanonicalModelInfoDto, CanonicalModelInfoRequest_unstable, CanonicalModelInfoResponse_unstable, CatalogPluginInfo, ConfigReadAllRequest_unstable, ConfigReadAllResponse_unstable, ConfigReadRequest_unstable, ConfigReadResponse_unstable, ConfigRemoveRequest_unstable, ConfigUpsertRequest_unstable, ContentBlock, CreateScheduleRequest_unstable, CreateScheduleResponse_unstable, CreateSourceRequest_unstable, CreateSourceResponse_unstable, CustomProviderConfigDto, CustomProviderCreateRequest_unstable, CustomProviderCreateResponse_unstable, CustomProviderDeleteRequest_unstable, CustomProviderDeleteResponse_unstable, CustomProviderReadRequest_unstable, CustomProviderReadResponse_unstable, CustomProviderUpdateRequest_unstable, CustomProviderUpdateResponse_unstable, DecodeRecipeRequest_unstable, DecodeRecipeResponse_unstable, DefaultsClearRequest_unstable, DefaultsReadRequest_unstable, DefaultsReadResponse_unstable, DefaultsSaveRequest_unstable, DeleteRecipeRequest_unstable, DeleteScheduleRequest_unstable, DeleteSessionRequest, DeleteSourceRequest_unstable, DiagnosticsGetRequest_unstable, DiagnosticsGetResponse_unstable, DiagnosticsReportLevel, DictationConfigRequest_unstable, DictationConfigResponse_unstable, DictationDownloadProgress, DictationLocalModelStatus, DictationModelCancelRequest_unstable, DictationModelDeleteRequest_unstable, DictationModelDownloadProgressRequest_unstable, DictationModelDownloadProgressResponse_unstable, DictationModelDownloadRequest_unstable, DictationModelOption, DictationModelSelectRequest_unstable, DictationModelsListRequest_unstable, DictationModelsListResponse_unstable, DictationProviderStatusEntry, DictationSecretDeleteRequest_unstable, DictationSecretSaveRequest_unstable, DictationTranscribeRequest_unstable, DictationTranscribeResponse_unstable, EmbeddedResource, EmbeddedResourceResource, EmptyResponse, EncodeRecipeRequest_unstable, EncodeRecipeResponse_unstable, EnvVariable, ExportSessionRequest_unstable, ExportSessionResponse_unstable, ExportSourceRequest_unstable, ExportSourceResponse_unstable, ExtAgentRequest, ExtAgentResponse, ExtNotification, ExtRequest, ExtResponse, GetAvailableExtensionsRequest_unstable, GetAvailableExtensionsResponse_unstable, GetConfigExtensionsRequest_unstable, GetConfigExtensionsResponse_unstable, GetPromptRequest_unstable, GetPromptResponse_unstable, GetSessionExtensionsRequest_unstable, GetSessionExtensionsResponse_unstable, GetSessionInfoRequest_unstable, GetSessionInfoResponse_unstable, GetToolsRequest_unstable, GetToolsResponse_unstable, GooseExtension, GooseExtensionEntry, GooseSessionNotification_unstable, GooseSessionUpdate, GooseToolCallRequest_unstable, GooseToolCallResponse_unstable, HttpHeader, ImageContent, ImportSessionRequest_unstable, ImportSessionResponse_unstable, ImportSourcesRequest_unstable, ImportSourcesResponse_unstable, InspectRunningJobRequest_unstable, InspectRunningJobResponse_unstable, InstalledPluginInfo, InstalledPluginResult_unstable, InstallMarketplacePluginRequest_unstable, KillRunningJobRequest_unstable, KillRunningJobResponse_unstable, ListAgentMentionsRequest_unstable, ListAgentMentionsResponse_unstable, ListInstalledPluginsRequest_unstable, ListInstalledPluginsResponse_unstable, ListMarketplacesRequest_unstable, ListMarketplacesResponse_unstable, ListPromptsRequest_unstable, ListPromptsResponse_unstable, ListProvidersRequest_unstable, ListProvidersResponse_unstable, ListRecipesRequest_unstable, ListRecipesResponse_unstable, ListScheduleSessionsRequest_unstable, ListScheduleSessionsResponse_unstable, ListSchedulesRequest_unstable, ListSchedulesResponse_unstable, ListSlashCommandsRequest_unstable, ListSlashCommandsResponse_unstable, ListSourcesRequest_unstable, ListSourcesResponse_unstable, LocalInferenceBuiltinChatTemplatesListRequest_unstable, LocalInferenceBuiltinChatTemplatesListResponse_unstable, LocalInferenceChatTemplate, LocalInferenceDownloadProgressDto, LocalInferenceDownloadState, LocalInferenceHfGgufFileDto, LocalInferenceHfModelInfoDto, LocalInferenceHfModelVariantDto, LocalInferenceHuggingFaceRepoVariantsRequest_unstable, LocalInferenceHuggingFaceRepoVariantsResponse_unstable, LocalInferenceHuggingFaceSearchRequest_unstable, LocalInferenceHuggingFaceSearchResponse_unstable, LocalInferenceModelDeleteRequest_unstable, LocalInferenceModelDownloadCancelRequest_unstable, LocalInferenceModelDownloadProgressRequest_unstable, LocalInferenceModelDownloadProgressResponse_unstable, LocalInferenceModelDownloadRequest_unstable, LocalInferenceModelDownloadResponse_unstable, LocalInferenceModelDownloadStatusDto, LocalInferenceModelDto, LocalInferenceModelSettingsDto, LocalInferenceModelSettingsReadRequest_unstable, LocalInferenceModelSettingsReadResponse_unstable, LocalInferenceModelSettingsUpdateRequest_unstable, LocalInferenceModelSettingsUpdateResponse_unstable, LocalInferenceModelsListRequest_unstable, LocalInferenceModelsListResponse_unstable, LocalInferenceSamplingConfig, LocalInferenceToolCallingMode, MarketplaceSourceInfo, McpServer, McpServerAcp, McpServerAcpId, McpServerHttp, McpServerSse, McpServerStdio, OnboardingImportApplyRequest_unstable, OnboardingImportApplyResponse_unstable, OnboardingImportCandidate, OnboardingImportCounts, OnboardingImportScanRequest_unstable, OnboardingImportScanResponse_unstable, OnboardingImportSourceKind, ParseRecipeRequest_unstable, ParseRecipeResponse_unstable, PauseScheduleRequest_unstable, PreferenceKey, PreferencesReadRequest_unstable, PreferencesReadResponse_unstable, PreferencesRemoveRequest_unstable, PreferencesSaveRequest_unstable, PreferenceValue, PromptOperationResponse_unstable, PromptTemplateEntry, ProviderCatalogListRequest_unstable, ProviderCatalogListResponse_unstable, ProviderCatalogTemplateRequest_unstable, ProviderCatalogTemplateResponse_unstable, ProviderConfigAuthenticateRequest_unstable, ProviderConfigChangeResponse_unstable, ProviderConfigDeleteRequest_unstable, ProviderConfigFieldUpdate, ProviderConfigFieldValueDto, ProviderConfigKey, ProviderConfigReadRequest_unstable, ProviderConfigReadResponse_unstable, ProviderConfigSaveRequest_unstable, ProviderConfigStatusDto, ProviderConfigStatusRequest_unstable, ProviderConfigStatusResponse_unstable, ProviderInventoryEntryDto, ProviderInventoryModelDto, ProviderSecretDeleteRequest_unstable, ProviderSecretDto, ProviderSecretsListRequest_unstable, ProviderSecretsListResponse_unstable, ProviderSecretStatusDto, ProviderSecretStorageDto, ProviderSetupCatalogEntryDto, ProviderSetupCatalogListRequest_unstable, ProviderSetupCatalogListResponse_unstable, ProviderSetupCategoryDto, ProviderSetupFieldDto, ProviderSetupGroupDto, ProviderSetupMethodDto, ProviderSupportedModelsListRequest_unstable, ProviderSupportedModelsListResponse_unstable, ProviderTemplateCapabilitiesDto, ProviderTemplateCatalogEntryDto, ProviderTemplateDto, ProviderTemplateModelDto, ReadResourceRequest_unstable, ReadResourceResponse_unstable, RecipeAuthorDto, RecipeDto, RecipeExtensionDto, RecipeListEntryDto, RecipeParameterDto, RecipeParameterInputTypeDto, RecipeParameterRequirementDto, RecipeParamsAction, RecipeParamsResponse_unstable, RecipeResponseDto, RecipeRetryConfigDto, RecipeSettingsDto, RecipeSuccessCheckDto, RecipeToYamlRequest_unstable, RecipeToYamlResponse_unstable, RefreshProviderInventoryRequest_unstable, RefreshProviderInventoryResponse_unstable, RefreshProviderInventorySkipDto, RefreshProviderInventorySkipReasonDto, RemoveConfigExtensionRequest_unstable, RemoveMarketplaceRequest_unstable, RemoveSessionExtensionRequest_unstable, RenameSessionRequest_unstable, RequestRecipeParams_unstable, ResetPromptRequest_unstable, ResourceLink, Role, RunScheduleNowRequest_unstable, RunScheduleNowResponse_unstable, RunScheduleNowStatus, SavePromptRequest_unstable, SaveRecipeRequest_unstable, SaveRecipeResponse_unstable, ScanRecipeRequest_unstable, ScanRecipeResponse_unstable, ScheduledJobDto, ScheduleRecipeRequest_unstable, SessionId, SessionImportSource, SessionInfo, SessionSystemPromptMode, SessionUsageUpdate, SetConfigExtensionEnabledRequest_unstable, SetPluginEnabledRequest_unstable, SetRecipeSlashCommandRequest_unstable, SetSessionSystemPromptRequest_unstable, SetToolPermissionsRequest_unstable, SetToolPermissionsResponse_unstable, ShareSessionNostrRequest_unstable, ShareSessionNostrResponse_unstable, SourceEntry, SourceScope, SourceType, StatusMessage, StatusMessageUpdate, SteerSessionRequest_unstable, SteerSessionResponse_unstable, SubRecipeDto, TextContent, TextResourceContents, ToolListItem, ToolPermissionEntry, ToolPermissionLevel, TruncateSessionConversationRequest_unstable, UnarchiveSessionRequest_unstable, UnpauseScheduleRequest_unstable, UnstructuredCommandInput, UpdatePluginRequest_unstable, UpdateScheduleRequest_unstable, UpdateScheduleResponse_unstable, UpdateSessionProjectRequest_unstable, UpdateSourceRequest_unstable, UpdateSourceResponse_unstable, UpdateWorkingDirRequest_unstable } from './types.gen.js';
+ 
+ export const GOOSE_EXT_METHODS = [
+   {
+     method: "_goose/unstable/session/extensions/add",
+     requestType: "AddSessionExtensionRequest_unstable",
+     responseType: "EmptyResponse",
+   },
+   {
+     method: "_goose/unstable/session/extensions/remove",
+     requestType: "RemoveSessionExtensionRequest_unstable",
+@@ -116,20 +116,60 @@ export const GOOSE_EXT_METHODS = [
+   {
+     method: "_goose/unstable/config/extensions/set-enabled",
+     requestType: "SetConfigExtensionEnabledRequest_unstable",
+     responseType: "EmptyResponse",
+   },
+   {
+     method: "_goose/unstable/session/extensions/list",
+     requestType: "GetSessionExtensionsRequest_unstable",
+     responseType: "GetSessionExtensionsResponse_unstable",
+   },
++  {
++    method: "_goose/unstable/marketplace/list",
++    requestType: "ListMarketplacesRequest_unstable",
++    responseType: "ListMarketplacesResponse_unstable",
++  },
++  {
++    method: "_goose/unstable/marketplace/add",
++    requestType: "AddMarketplaceRequest_unstable",
++    responseType: "EmptyResponse",
++  },
++  {
++    method: "_goose/unstable/marketplace/remove",
++    requestType: "RemoveMarketplaceRequest_unstable",
++    responseType: "EmptyResponse",
++  },
++  {
++    method: "_goose/unstable/marketplace/browse",
++    requestType: "BrowseMarketplaceRequest_unstable",
++    responseType: "BrowseMarketplaceResponse_unstable",
++  },
++  {
++    method: "_goose/unstable/marketplace/install",
++    requestType: "InstallMarketplacePluginRequest_unstable",
++    responseType: "InstalledPluginResult_unstable",
++  },
++  {
++    method: "_goose/unstable/plugins/list",
++    requestType: "ListInstalledPluginsRequest_unstable",
++    responseType: "ListInstalledPluginsResponse_unstable",
++  },
++  {
++    method: "_goose/unstable/plugins/set-enabled",
++    requestType: "SetPluginEnabledRequest_unstable",
++    responseType: "EmptyResponse",
++  },
++  {
++    method: "_goose/unstable/plugins/update",
++    requestType: "UpdatePluginRequest_unstable",
++    responseType: "InstalledPluginResult_unstable",
++  },
+   {
+     method: "_goose/unstable/providers/list",
+     requestType: "ListProvidersRequest_unstable",
+     responseType: "ListProvidersResponse_unstable",
+   },
+   {
+     method: "_goose/unstable/providers/supported-models/list",
+     requestType: "ProviderSupportedModelsListRequest_unstable",
+     responseType: "ProviderSupportedModelsListResponse_unstable",
+   },
+diff --git a/ui/sdk/src/generated/types.gen.ts b/ui/sdk/src/generated/types.gen.ts
+index f6f71e336..2454de2ca 100644
+--- a/ui/sdk/src/generated/types.gen.ts
++++ b/ui/sdk/src/generated/types.gen.ts
+@@ -820,20 +820,102 @@ export type SetConfigExtensionEnabledRequest_unstable = {
+ };
+ 
+ export type GetSessionExtensionsRequest_unstable = {
+     sessionId: string;
+ };
+ 
+ export type GetSessionExtensionsResponse_unstable = {
+     extensions: Array<GooseExtension>;
+ };
+ 
++export type ListMarketplacesRequest_unstable = {
++    [key: string]: unknown;
++};
++
++export type ListMarketplacesResponse_unstable = {
++    marketplaces: Array<MarketplaceSourceInfo>;
++};
++
++export type MarketplaceSourceInfo = {
++    name: string;
++    kind: string;
++    location: string;
++    enabled: boolean;
++};
++
++export type AddMarketplaceRequest_unstable = {
++    name: string;
++    kind: string;
++    location: string;
++};
++
++export type RemoveMarketplaceRequest_unstable = {
++    name: string;
++};
++
++export type BrowseMarketplaceRequest_unstable = {
++    name: string;
++};
++
++export type BrowseMarketplaceResponse_unstable = {
++    plugins: Array<CatalogPluginInfo>;
++};
++
++export type CatalogPluginInfo = {
++    name: string;
++    description?: string | null;
++    installable: boolean;
++    sourceKind: string;
++};
++
++export type InstallMarketplacePluginRequest_unstable = {
++    marketplace: string;
++    plugin: string;
++    autoUpdate?: boolean;
++};
++
++export type InstalledPluginResult_unstable = {
++    name: string;
++    version: string;
++    format: string;
++    source: string;
++    skills: Array<string>;
++    hasHooks: boolean;
++    hasMcp: boolean;
++};
++
++export type ListInstalledPluginsRequest_unstable = {
++    [key: string]: unknown;
++};
++
++export type ListInstalledPluginsResponse_unstable = {
++    plugins: Array<InstalledPluginInfo>;
++};
++
++export type InstalledPluginInfo = {
++    name: string;
++    version: string;
++    source: string;
++    enabled: boolean;
++    autoUpdate: boolean;
++    updatable: boolean;
++};
++
++export type SetPluginEnabledRequest_unstable = {
++    name: string;
++    enabled: boolean;
++};
++
++export type UpdatePluginRequest_unstable = {
++    name: string;
++};
++
+ /**
+  * List providers with setup metadata and the current model inventory snapshot.
+  */
+ export type ListProvidersRequest_unstable = {
+     /**
+      * Only return entries for these providers. Empty means all.
+      */
+     providerIds?: Array<string>;
+ };
+ 
+@@ -2572,28 +2654,28 @@ export type RecipeParamsResponse_unstable = {
+     values?: {
+         [key: string]: string;
+     };
+ };
+ 
+ export type RecipeParamsAction = 'submit' | 'cancel';
+ 
+ export type ExtRequest = {
+     id: string;
+     method: string;
+-    params?: AddSessionExtensionRequest_unstable | RemoveSessionExtensionRequest_unstable | GetToolsRequest_unstable | SetToolPermissionsRequest_unstable | GooseToolCallRequest_unstable | ReadResourceRequest_unstable | AppsListRequest_unstable | AppsExportRequest_unstable | AppsImportRequest_unstable | UpdateWorkingDirRequest_unstable | SetSessionSystemPromptRequest_unstable | SteerSessionRequest_unstable | DiagnosticsGetRequest_unstable | ListPromptsRequest_unstable | GetPromptRequest_unstable | SavePromptRequest_unstable | ResetPromptRequest_unstable | DeleteSessionRequest | GetConfigExtensionsRequest_unstable | GetAvailableExtensionsRequest_unstable | AddConfigExtensionRequest_unstable | RemoveConfigExtensionRequest_unstable | SetConfigExtensionEnabledRequest_unstable | GetSessionExtensionsRequest_unstable | ListProvidersRequest_unstable | ProviderSupportedModelsListRequest_unstable | ProviderCatalogListRequest_unstable | ProviderSetupCatalogListRequest_unstable | ProviderCatalogTemplateRequest_unstable | CustomProviderCreateRequest_unstable | CustomProviderReadRequest_unstable | CustomProviderUpdateRequest_unstable | CustomProviderDeleteRequest_unstable | RefreshProviderInventoryRequest_unstable | ProviderConfigReadRequest_unstable | ProviderConfigStatusRequest_unstable | ProviderConfigSaveRequest_unstable | ProviderConfigDeleteRequest_unstable | ProviderConfigAuthenticateRequest_unstable | ProviderSecretsListRequest_unstable | ProviderSecretDeleteRequest_unstable | CanonicalModelInfoRequest_unstable | PreferencesReadRequest_unstable | PreferencesSaveRequest_unstable | PreferencesRemoveRequest_unstable | ConfigReadRequest_unstable | ConfigUpsertRequest_unstable | ConfigRemoveRequest_unstable | ConfigReadAllRequest_unstable | DefaultsReadRequest_unstable | DefaultsSaveRequest_unstable | DefaultsClearRequest_unstable | OnboardingImportScanRequest_unstable | OnboardingImportApplyRequest_unstable | ExportSessionRequest_unstable | ImportSessionRequest_unstable | ShareSessionNostrRequest_unstable | EncodeRecipeRequest_unstable | DecodeRecipeRequest_unstable | ScanRecipeRequest_unstable | ListRecipesRequest_unstable | DeleteRecipeRequest_unstable | ScheduleRecipeRequest_unstable | SetRecipeSlashCommandRequest_unstable | SaveRecipeRequest_unstable | ParseRecipeRequest_unstable | RecipeToYamlRequest_unstable | ListSchedulesRequest_unstable | ListScheduleSessionsRequest_unstable | CreateScheduleRequest_unstable | DeleteScheduleRequest_unstable | PauseScheduleRequest_unstable | UnpauseScheduleRequest_unstable | UpdateScheduleRequest_unstable | RunScheduleNowRequest_unstable | KillRunningJobRequest_unstable | InspectRunningJobRequest_unstable | GetSessionInfoRequest_unstable | TruncateSessionConversationRequest_unstable | UpdateSessionProjectRequest_unstable | RenameSessionRequest_unstable | ArchiveSessionRequest_unstable | UnarchiveSessionRequest_unstable | CreateSourceRequest_unstable | ListSourcesRequest_unstable | ListAgentMentionsRequest_unstable | ListSlashCommandsRequest_unstable | UpdateSourceRequest_unstable | DeleteSourceRequest_unstable | ExportSourceRequest_unstable | ImportSourcesRequest_unstable | DictationTranscribeRequest_unstable | DictationConfigRequest_unstable | DictationSecretSaveRequest_unstable | DictationSecretDeleteRequest_unstable | DictationModelsListRequest_unstable | DictationModelDownloadRequest_unstable | DictationModelDownloadProgressRequest_unstable | DictationModelCancelRequest_unstable | DictationModelDeleteRequest_unstable | DictationModelSelectRequest_unstable | LocalInferenceModelsListRequest_unstable | LocalInferenceModelDownloadRequest_unstable | LocalInferenceModelDownloadProgressRequest_unstable | LocalInferenceModelDownloadCancelRequest_unstable | LocalInferenceModelDeleteRequest_unstable | LocalInferenceModelSettingsReadRequest_unstable | LocalInferenceModelSettingsUpdateRequest_unstable | LocalInferenceHuggingFaceSearchRequest_unstable | LocalInferenceHuggingFaceRepoVariantsRequest_unstable | LocalInferenceBuiltinChatTemplatesListRequest_unstable | {
++    params?: AddSessionExtensionRequest_unstable | RemoveSessionExtensionRequest_unstable | GetToolsRequest_unstable | SetToolPermissionsRequest_unstable | GooseToolCallRequest_unstable | ReadResourceRequest_unstable | AppsListRequest_unstable | AppsExportRequest_unstable | AppsImportRequest_unstable | UpdateWorkingDirRequest_unstable | SetSessionSystemPromptRequest_unstable | SteerSessionRequest_unstable | DiagnosticsGetRequest_unstable | ListPromptsRequest_unstable | GetPromptRequest_unstable | SavePromptRequest_unstable | ResetPromptRequest_unstable | DeleteSessionRequest | GetConfigExtensionsRequest_unstable | GetAvailableExtensionsRequest_unstable | AddConfigExtensionRequest_unstable | RemoveConfigExtensionRequest_unstable | SetConfigExtensionEnabledRequest_unstable | GetSessionExtensionsRequest_unstable | ListMarketplacesRequest_unstable | AddMarketplaceRequest_unstable | RemoveMarketplaceRequest_unstable | BrowseMarketplaceRequest_unstable | InstallMarketplacePluginRequest_unstable | ListInstalledPluginsRequest_unstable | SetPluginEnabledRequest_unstable | UpdatePluginRequest_unstable | ListProvidersRequest_unstable | ProviderSupportedModelsListRequest_unstable | ProviderCatalogListRequest_unstable | ProviderSetupCatalogListRequest_unstable | ProviderCatalogTemplateRequest_unstable | CustomProviderCreateRequest_unstable | CustomProviderReadRequest_unstable | CustomProviderUpdateRequest_unstable | CustomProviderDeleteRequest_unstable | RefreshProviderInventoryRequest_unstable | ProviderConfigReadRequest_unstable | ProviderConfigStatusRequest_unstable | ProviderConfigSaveRequest_unstable | ProviderConfigDeleteRequest_unstable | ProviderConfigAuthenticateRequest_unstable | ProviderSecretsListRequest_unstable | ProviderSecretDeleteRequest_unstable | CanonicalModelInfoRequest_unstable | PreferencesReadRequest_unstable | PreferencesSaveRequest_unstable | PreferencesRemoveRequest_unstable | ConfigReadRequest_unstable | ConfigUpsertRequest_unstable | ConfigRemoveRequest_unstable | ConfigReadAllRequest_unstable | DefaultsReadRequest_unstable | DefaultsSaveRequest_unstable | DefaultsClearRequest_unstable | OnboardingImportScanRequest_unstable | OnboardingImportApplyRequest_unstable | ExportSessionRequest_unstable | ImportSessionRequest_unstable | ShareSessionNostrRequest_unstable | EncodeRecipeRequest_unstable | DecodeRecipeRequest_unstable | ScanRecipeRequest_unstable | ListRecipesRequest_unstable | DeleteRecipeRequest_unstable | ScheduleRecipeRequest_unstable | SetRecipeSlashCommandRequest_unstable | SaveRecipeRequest_unstable | ParseRecipeRequest_unstable | RecipeToYamlRequest_unstable | ListSchedulesRequest_unstable | ListScheduleSessionsRequest_unstable | CreateScheduleRequest_unstable | DeleteScheduleRequest_unstable | PauseScheduleRequest_unstable | UnpauseScheduleRequest_unstable | UpdateScheduleRequest_unstable | RunScheduleNowRequest_unstable | KillRunningJobRequest_unstable | InspectRunningJobRequest_unstable | GetSessionInfoRequest_unstable | TruncateSessionConversationRequest_unstable | UpdateSessionProjectRequest_unstable | RenameSessionRequest_unstable | ArchiveSessionRequest_unstable | UnarchiveSessionRequest_unstable | CreateSourceRequest_unstable | ListSourcesRequest_unstable | ListAgentMentionsRequest_unstable | ListSlashCommandsRequest_unstable | UpdateSourceRequest_unstable | DeleteSourceRequest_unstable | ExportSourceRequest_unstable | ImportSourcesRequest_unstable | DictationTranscribeRequest_unstable | DictationConfigRequest_unstable | DictationSecretSaveRequest_unstable | DictationSecretDeleteRequest_unstable | DictationModelsListRequest_unstable | DictationModelDownloadRequest_unstable | DictationModelDownloadProgressRequest_unstable | DictationModelCancelRequest_unstable | DictationModelDeleteRequest_unstable | DictationModelSelectRequest_unstable | LocalInferenceModelsListRequest_unstable | LocalInferenceModelDownloadRequest_unstable | LocalInferenceModelDownloadProgressRequest_unstable | LocalInferenceModelDownloadCancelRequest_unstable | LocalInferenceModelDeleteRequest_unstable | LocalInferenceModelSettingsReadRequest_unstable | LocalInferenceModelSettingsUpdateRequest_unstable | LocalInferenceHuggingFaceSearchRequest_unstable | LocalInferenceHuggingFaceRepoVariantsRequest_unstable | LocalInferenceBuiltinChatTemplatesListRequest_unstable | {
+         [key: string]: unknown;
+     } | null;
+ };
+ 
+ export type ExtResponse = {
+     id: string;
+-    result?: EmptyResponse | GetToolsResponse_unstable | SetToolPermissionsResponse_unstable | GooseToolCallResponse_unstable | ReadResourceResponse_unstable | AppsListResponse_unstable | AppsExportResponse_unstable | AppsImportResponse_unstable | SteerSessionResponse_unstable | DiagnosticsGetResponse_unstable | ListPromptsResponse_unstable | GetPromptResponse_unstable | PromptOperationResponse_unstable | GetConfigExtensionsResponse_unstable | GetAvailableExtensionsResponse_unstable | GetSessionExtensionsResponse_unstable | ListProvidersResponse_unstable | ProviderSupportedModelsListResponse_unstable | ProviderCatalogListResponse_unstable | ProviderSetupCatalogListResponse_unstable | ProviderCatalogTemplateResponse_unstable | CustomProviderCreateResponse_unstable | CustomProviderReadResponse_unstable | CustomProviderUpdateResponse_unstable | CustomProviderDeleteResponse_unstable | RefreshProviderInventoryResponse_unstable | ProviderConfigReadResponse_unstable | ProviderConfigStatusResponse_unstable | ProviderConfigChangeResponse_unstable | ProviderSecretsListResponse_unstable | CanonicalModelInfoResponse_unstable | PreferencesReadResponse_unstable | ConfigReadResponse_unstable | ConfigReadAllResponse_unstable | DefaultsReadResponse_unstable | OnboardingImportScanResponse_unstable | OnboardingImportApplyResponse_unstable | ExportSessionResponse_unstable | ImportSessionResponse_unstable | ShareSessionNostrResponse_unstable | EncodeRecipeResponse_unstable | DecodeRecipeResponse_unstable | ScanRecipeResponse_unstable | ListRecipesResponse_unstable | SaveRecipeResponse_unstable | ParseRecipeResponse_unstable | RecipeToYamlResponse_unstable | ListSchedulesResponse_unstable | ListScheduleSessionsResponse_unstable | CreateScheduleResponse_unstable | UpdateScheduleResponse_unstable | RunScheduleNowResponse_unstable | KillRunningJobResponse_unstable | InspectRunningJobResponse_unstable | GetSessionInfoResponse_unstable | CreateSourceResponse_unstable | ListSourcesResponse_unstable | ListAgentMentionsResponse_unstable | ListSlashCommandsResponse_unstable | UpdateSourceResponse_unstable | ExportSourceResponse_unstable | ImportSourcesResponse_unstable | DictationTranscribeResponse_unstable | DictationConfigResponse_unstable | DictationModelsListResponse_unstable | DictationModelDownloadProgressResponse_unstable | LocalInferenceModelsListResponse_unstable | LocalInferenceModelDownloadResponse_unstable | LocalInferenceModelDownloadProgressResponse_unstable | LocalInferenceModelSettingsReadResponse_unstable | LocalInferenceModelSettingsUpdateResponse_unstable | LocalInferenceHuggingFaceSearchResponse_unstable | LocalInferenceHuggingFaceRepoVariantsResponse_unstable | LocalInferenceBuiltinChatTemplatesListResponse_unstable | unknown;
++    result?: EmptyResponse | GetToolsResponse_unstable | SetToolPermissionsResponse_unstable | GooseToolCallResponse_unstable | ReadResourceResponse_unstable | AppsListResponse_unstable | AppsExportResponse_unstable | AppsImportResponse_unstable | SteerSessionResponse_unstable | DiagnosticsGetResponse_unstable | ListPromptsResponse_unstable | GetPromptResponse_unstable | PromptOperationResponse_unstable | GetConfigExtensionsResponse_unstable | GetAvailableExtensionsResponse_unstable | GetSessionExtensionsResponse_unstable | ListMarketplacesResponse_unstable | BrowseMarketplaceResponse_unstable | InstalledPluginResult_unstable | ListInstalledPluginsResponse_unstable | ListProvidersResponse_unstable | ProviderSupportedModelsListResponse_unstable | ProviderCatalogListResponse_unstable | ProviderSetupCatalogListResponse_unstable | ProviderCatalogTemplateResponse_unstable | CustomProviderCreateResponse_unstable | CustomProviderReadResponse_unstable | CustomProviderUpdateResponse_unstable | CustomProviderDeleteResponse_unstable | RefreshProviderInventoryResponse_unstable | ProviderConfigReadResponse_unstable | ProviderConfigStatusResponse_unstable | ProviderConfigChangeResponse_unstable | ProviderSecretsListResponse_unstable | CanonicalModelInfoResponse_unstable | PreferencesReadResponse_unstable | ConfigReadResponse_unstable | ConfigReadAllResponse_unstable | DefaultsReadResponse_unstable | OnboardingImportScanResponse_unstable | OnboardingImportApplyResponse_unstable | ExportSessionResponse_unstable | ImportSessionResponse_unstable | ShareSessionNostrResponse_unstable | EncodeRecipeResponse_unstable | DecodeRecipeResponse_unstable | ScanRecipeResponse_unstable | ListRecipesResponse_unstable | SaveRecipeResponse_unstable | ParseRecipeResponse_unstable | RecipeToYamlResponse_unstable | ListSchedulesResponse_unstable | ListScheduleSessionsResponse_unstable | CreateScheduleResponse_unstable | UpdateScheduleResponse_unstable | RunScheduleNowResponse_unstable | KillRunningJobResponse_unstable | InspectRunningJobResponse_unstable | GetSessionInfoResponse_unstable | CreateSourceResponse_unstable | ListSourcesResponse_unstable | ListAgentMentionsResponse_unstable | ListSlashCommandsResponse_unstable | UpdateSourceResponse_unstable | ExportSourceResponse_unstable | ImportSourcesResponse_unstable | DictationTranscribeResponse_unstable | DictationConfigResponse_unstable | DictationModelsListResponse_unstable | DictationModelDownloadProgressResponse_unstable | LocalInferenceModelsListResponse_unstable | LocalInferenceModelDownloadResponse_unstable | LocalInferenceModelDownloadProgressResponse_unstable | LocalInferenceModelSettingsReadResponse_unstable | LocalInferenceModelSettingsUpdateResponse_unstable | LocalInferenceHuggingFaceSearchResponse_unstable | LocalInferenceHuggingFaceRepoVariantsResponse_unstable | LocalInferenceBuiltinChatTemplatesListResponse_unstable | unknown;
+ } | {
+     error: {
+         code: number;
+         message: string;
+         data?: unknown;
+     };
+     id: string;
+ };
+ 
+ export type ExtNotification = {
+diff --git a/ui/sdk/src/generated/zod.gen.ts b/ui/sdk/src/generated/zod.gen.ts
+index 2ff020ffc..ace9aa239 100644
+--- a/ui/sdk/src/generated/zod.gen.ts
++++ b/ui/sdk/src/generated/zod.gen.ts
+@@ -708,20 +708,101 @@ export const zSetConfigExtensionEnabledRequest_unstable = z.object({
+ });
+ 
+ export const zGetSessionExtensionsRequest_unstable = z.object({
+     sessionId: z.string()
+ });
+ 
+ export const zGetSessionExtensionsResponse_unstable = z.object({
+     extensions: z.array(zGooseExtension)
+ });
+ 
++export const zListMarketplacesRequest_unstable = z.record(z.unknown());
++
++export const zMarketplaceSourceInfo = z.object({
++    name: z.string(),
++    kind: z.string(),
++    location: z.string(),
++    enabled: z.boolean()
++});
++
++export const zListMarketplacesResponse_unstable = z.object({
++    marketplaces: z.array(zMarketplaceSourceInfo)
++});
++
++export const zAddMarketplaceRequest_unstable = z.object({
++    name: z.string(),
++    kind: z.string(),
++    location: z.string()
++});
++
++export const zRemoveMarketplaceRequest_unstable = z.object({
++    name: z.string()
++});
++
++export const zBrowseMarketplaceRequest_unstable = z.object({
++    name: z.string()
++});
++
++export const zCatalogPluginInfo = z.object({
++    name: z.string(),
++    description: z.union([
++        z.string(),
++        z.null()
++    ]).optional(),
++    installable: z.boolean(),
++    sourceKind: z.string()
++});
++
++export const zBrowseMarketplaceResponse_unstable = z.object({
++    plugins: z.array(zCatalogPluginInfo)
++});
++
++export const zInstallMarketplacePluginRequest_unstable = z.object({
++    marketplace: z.string(),
++    plugin: z.string(),
++    autoUpdate: z.boolean().optional().default(false)
++});
++
++export const zInstalledPluginResult_unstable = z.object({
++    name: z.string(),
++    version: z.string(),
++    format: z.string(),
++    source: z.string(),
++    skills: z.array(z.string()),
++    hasHooks: z.boolean(),
++    hasMcp: z.boolean()
++});
++
++export const zListInstalledPluginsRequest_unstable = z.record(z.unknown());
++
++export const zInstalledPluginInfo = z.object({
++    name: z.string(),
++    version: z.string(),
++    source: z.string(),
++    enabled: z.boolean(),
++    autoUpdate: z.boolean(),
++    updatable: z.boolean()
++});
++
++export const zListInstalledPluginsResponse_unstable = z.object({
++    plugins: z.array(zInstalledPluginInfo)
++});
++
++export const zSetPluginEnabledRequest_unstable = z.object({
++    name: z.string(),
++    enabled: z.boolean()
++});
++
++export const zUpdatePluginRequest_unstable = z.object({
++    name: z.string()
++});
++
+ /**
+  * List providers with setup metadata and the current model inventory snapshot.
+  */
+ export const zListProvidersRequest_unstable = z.object({
+     providerIds: z.array(z.string()).optional().default([])
+ });
+ 
+ export const zProviderSetupCategoryDto = z.enum(['agent', 'model']);
+ 
+ export const zProviderConfigKey = z.object({
+@@ -2758,20 +2839,28 @@ export const zExtRequest = z.object({
+             zGetPromptRequest_unstable,
+             zSavePromptRequest_unstable,
+             zResetPromptRequest_unstable,
+             zDeleteSessionRequest,
+             zGetConfigExtensionsRequest_unstable,
+             zGetAvailableExtensionsRequest_unstable,
+             zAddConfigExtensionRequest_unstable,
+             zRemoveConfigExtensionRequest_unstable,
+             zSetConfigExtensionEnabledRequest_unstable,
+             zGetSessionExtensionsRequest_unstable,
++            zListMarketplacesRequest_unstable,
++            zAddMarketplaceRequest_unstable,
++            zRemoveMarketplaceRequest_unstable,
++            zBrowseMarketplaceRequest_unstable,
++            zInstallMarketplacePluginRequest_unstable,
++            zListInstalledPluginsRequest_unstable,
++            zSetPluginEnabledRequest_unstable,
++            zUpdatePluginRequest_unstable,
+             zListProvidersRequest_unstable,
+             zProviderSupportedModelsListRequest_unstable,
+             zProviderCatalogListRequest_unstable,
+             zProviderSetupCatalogListRequest_unstable,
+             zProviderCatalogTemplateRequest_unstable,
+             zCustomProviderCreateRequest_unstable,
+             zCustomProviderReadRequest_unstable,
+             zCustomProviderUpdateRequest_unstable,
+             zCustomProviderDeleteRequest_unstable,
+             zRefreshProviderInventoryRequest_unstable,
+@@ -2874,20 +2963,24 @@ export const zExtResponse = z.union([
+                 zAppsExportResponse_unstable,
+                 zAppsImportResponse_unstable,
+                 zSteerSessionResponse_unstable,
+                 zDiagnosticsGetResponse_unstable,
+                 zListPromptsResponse_unstable,
+                 zGetPromptResponse_unstable,
+                 zPromptOperationResponse_unstable,
+                 zGetConfigExtensionsResponse_unstable,
+                 zGetAvailableExtensionsResponse_unstable,
+                 zGetSessionExtensionsResponse_unstable,
++                zListMarketplacesResponse_unstable,
++                zBrowseMarketplaceResponse_unstable,
++                zInstalledPluginResult_unstable,
++                zListInstalledPluginsResponse_unstable,
+                 zListProvidersResponse_unstable,
+                 zProviderSupportedModelsListResponse_unstable,
+                 zProviderCatalogListResponse_unstable,
+                 zProviderSetupCatalogListResponse_unstable,
+                 zProviderCatalogTemplateResponse_unstable,
+                 zCustomProviderCreateResponse_unstable,
+                 zCustomProviderReadResponse_unstable,
+                 zCustomProviderUpdateResponse_unstable,
+                 zCustomProviderDeleteResponse_unstable,
+                 zRefreshProviderInventoryResponse_unstable,
