@@ -20,6 +20,18 @@ fn source_kind_label(s: &PluginSource) -> &'static str {
     }
 }
 
+/// Look up a configured marketplace by name, or return an `invalid_params` error.
+fn find_marketplace(name: &str) -> Result<MarketplaceSource, agent_client_protocol::Error> {
+    crate::marketplace::registry::list_marketplaces()
+        .internal_err()?
+        .into_iter()
+        .find(|m| m.name == name)
+        .ok_or_else(|| {
+            agent_client_protocol::Error::invalid_params()
+                .data(format!("marketplace '{name}' not found"))
+        })
+}
+
 impl GooseAcpAgent {
     pub(super) async fn on_marketplace_list(
         &self,
@@ -30,7 +42,7 @@ impl GooseAcpAgent {
                 .into_iter()
                 .map(|m| MarketplaceSourceInfo {
                     name: m.name,
-                    kind: format!("{:?}", m.kind).to_lowercase(),
+                    kind: m.kind.kind_str().to_string(),
                     location: m.location,
                     enabled: m.enabled,
                 })
@@ -69,16 +81,14 @@ impl GooseAcpAgent {
         &self,
         req: BrowseMarketplaceRequest,
     ) -> Result<BrowseMarketplaceResponse, agent_client_protocol::Error> {
-        let src = crate::marketplace::registry::list_marketplaces()
-            .internal_err()?
-            .into_iter()
-            .find(|m| m.name == req.name)
-            .ok_or_else(|| {
-                agent_client_protocol::Error::invalid_params()
-                    .data(format!("marketplace '{}' not found", req.name))
-            })?;
-        let plugins = crate::marketplace::fetch::fetch_catalog(&src)
-            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
+        let src = find_marketplace(&req.name)?;
+        // `fetch_catalog` shells out to `git`, which blocks the thread; keep it off the
+        // async executor so it doesn't stall the whole ACP connection.
+        let plugins =
+            tokio::task::spawn_blocking(move || crate::marketplace::fetch::fetch_catalog(&src))
+                .await
+                .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?
+                .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
         Ok(BrowseMarketplaceResponse {
             plugins: plugins
                 .into_iter()
@@ -96,36 +106,36 @@ impl GooseAcpAgent {
         &self,
         req: InstallMarketplacePluginRequest,
     ) -> Result<InstalledPluginResult, agent_client_protocol::Error> {
-        let src = crate::marketplace::registry::list_marketplaces()
-            .internal_err()?
-            .into_iter()
-            .find(|m| m.name == req.marketplace)
-            .ok_or_else(|| {
-                agent_client_protocol::Error::invalid_params()
-                    .data(format!("marketplace '{}' not found", req.marketplace))
-            })?;
-        let tmp = tempfile::tempdir()
-            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
-        crate::plugins::clone_marketplace_repo(&src.location, tmp.path())
-            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
-        let entry = crate::marketplace::fetch::fetch_catalog_from_dir(&src, tmp.path())
-            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?
-            .into_iter()
-            .find(|p| p.name == req.plugin)
-            .ok_or_else(|| {
-                agent_client_protocol::Error::invalid_params().data(format!(
-                    "plugin '{}' not found in marketplace '{}'",
-                    req.plugin, req.marketplace
-                ))
-            })?;
-        let install = crate::marketplace::install::install_catalog_plugin(
-            &entry,
-            tmp.path(),
-            crate::plugins::PluginInstallOptions {
-                auto_update: req.auto_update,
-            },
-        )
-        .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
+        let src = find_marketplace(&req.marketplace)?;
+        let marketplace_name = req.marketplace;
+        let plugin_name = req.plugin;
+        let auto_update = req.auto_update;
+        // The whole clone -> fetch -> install sequence shells out to `git` and touches the
+        // filesystem, so run it as one unit on the blocking pool. The `TempDir` is created
+        // and dropped inside the closure so the checkout stays alive until install finishes.
+        let install = tokio::task::spawn_blocking(move || {
+            let tmp = tempfile::tempdir()
+                .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
+            crate::plugins::clone_marketplace_repo(&src.location, tmp.path())
+                .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
+            let entry = crate::marketplace::fetch::fetch_catalog_from_dir(&src, tmp.path())
+                .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?
+                .into_iter()
+                .find(|p| p.name == plugin_name)
+                .ok_or_else(|| {
+                    agent_client_protocol::Error::invalid_params().data(format!(
+                        "plugin '{plugin_name}' not found in marketplace '{marketplace_name}'"
+                    ))
+                })?;
+            crate::marketplace::install::install_catalog_plugin(
+                &entry,
+                tmp.path(),
+                crate::plugins::PluginInstallOptions { auto_update },
+            )
+            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))
+        })
+        .await
+        .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))??;
         Ok(install_to_result(install))
     }
 
@@ -159,7 +169,11 @@ impl GooseAcpAgent {
         &self,
         req: UpdatePluginRequest,
     ) -> Result<InstalledPluginResult, agent_client_protocol::Error> {
-        let install = crate::plugins::update_plugin(&req.name)
+        let name = req.name;
+        // `update_plugin` shells out to `git`; keep it off the async executor.
+        let install = tokio::task::spawn_blocking(move || crate::plugins::update_plugin(&name))
+            .await
+            .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?
             .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()))?;
         Ok(install_to_result(install))
     }

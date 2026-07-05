@@ -15,6 +15,16 @@ pub enum MarketplaceKind {
     Codex,
 }
 
+impl MarketplaceKind {
+    /// Lowercase, stable string form of the kind for display/serialization purposes.
+    pub fn kind_str(&self) -> &'static str {
+        match self {
+            MarketplaceKind::Claude => "claude",
+            MarketplaceKind::Codex => "codex",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MarketplaceSource {
     pub name: String,
@@ -27,10 +37,7 @@ pub struct MarketplaceSource {
 impl MarketplaceSource {
     /// Lowercase, stable string form of `kind` for display purposes (e.g. CLI `marketplace list`).
     pub fn kind_str(&self) -> &'static str {
-        match self.kind {
-            MarketplaceKind::Claude => "claude",
-            MarketplaceKind::Codex => "codex",
-        }
+        self.kind.kind_str()
     }
 }
 
