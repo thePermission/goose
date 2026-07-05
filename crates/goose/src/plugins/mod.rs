@@ -20,6 +20,8 @@ const AUTO_UPDATE_INTERVAL_HOURS: i64 = 24;
 pub enum PluginFormat {
     Gemini,
     OpenPlugins,
+    Claude,
+    Codex,
 }
 
 impl std::fmt::Display for PluginFormat {
@@ -27,6 +29,8 @@ impl std::fmt::Display for PluginFormat {
         match self {
             PluginFormat::Gemini => write!(f, "gemini"),
             PluginFormat::OpenPlugins => write!(f, "open-plugins"),
+            PluginFormat::Claude => write!(f, "claude"),
+            PluginFormat::Codex => write!(f, "codex"),
         }
     }
 }
@@ -146,6 +150,23 @@ fn install_plugin_with_options_at_root(
         &options,
         options.auto_update.then_some(Utc::now()),
     )
+}
+
+pub fn install_plugin_from_checkout(
+    checkout_dir: &Path,
+    source: &str,
+    options: PluginInstallOptions,
+) -> Result<PluginInstall> {
+    install_plugin_from_checkout_at_root(checkout_dir, source, options, &plugin_install_dir())
+}
+
+pub(crate) fn install_plugin_from_checkout_at_root(
+    checkout_dir: &Path,
+    source: &str,
+    options: PluginInstallOptions,
+    install_root: &Path,
+) -> Result<PluginInstall> {
+    install_from_checkout_at_root(source, checkout_dir, install_root, &options, None)
 }
 
 pub fn update_plugin(name: &str) -> Result<PluginInstall> {
@@ -287,6 +308,65 @@ fn install_from_checkout_at_root(
         Err(err) if err.is::<FormatNotSupported>() => bail!("No supported plugin format found"),
         Err(err) => Err(err),
     }
+}
+
+/// Thin wrapper exposing the git-clone helper to `crate::marketplace` (fetch_catalog) and to
+/// downstream crates such as `goose-cli` (e.g. `marketplace install`, which needs the checkout
+/// to resolve `PluginSource::RelativePath` entries against the same clone used for the catalog).
+pub fn clone_marketplace_repo(url: &str, dest: &Path) -> Result<()> {
+    clone_git_repo(url, dest)
+}
+
+/// Like [`clone_marketplace_repo`], but honors a pinned `git_ref` (tag / branch / SHA).
+///
+/// With `git_ref == None` this behaves exactly like [`clone_marketplace_repo`]
+/// (shallow `--depth 1` clone of the default branch). With `Some(r)` it does a
+/// full clone (so arbitrary SHAs are reachable — a shallow clone cannot check
+/// out an arbitrary commit) and then `git -C <dest> checkout <r>`.
+pub(crate) fn clone_marketplace_repo_ref(
+    url: &str,
+    dest: &Path,
+    git_ref: Option<&str>,
+) -> Result<()> {
+    match git_ref {
+        None => clone_git_repo(url, dest),
+        Some(git_ref) => clone_git_repo_at_ref(url, dest, git_ref),
+    }
+}
+
+fn clone_git_repo_at_ref(source: &str, destination: &Path, git_ref: &str) -> Result<()> {
+    // Full clone (no `--depth 1`) so arbitrary SHAs / tags / branches are reachable;
+    // a shallow clone only fetches the default-branch tip and cannot check out a pin.
+    let output = Command::new("git")
+        .arg("clone")
+        .arg(source)
+        .arg(destination)
+        .set_no_window()
+        .output()
+        .map_err(|e| anyhow!("Failed to run git clone: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let message = if stderr.is_empty() { stdout } else { stderr };
+        bail!("Failed to clone plugin repository: {message}");
+    }
+
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(destination)
+        .arg("checkout")
+        .arg(git_ref)
+        .set_no_window()
+        .output()
+        .map_err(|e| anyhow!("Failed to run git checkout: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let message = if stderr.is_empty() { stdout } else { stderr };
+        bail!("Failed to check out pinned ref '{git_ref}': {message}");
+    }
+
+    Ok(())
 }
 
 fn clone_git_repo(source: &str, destination: &Path) -> Result<()> {
@@ -524,6 +604,35 @@ mod tests {
             .contains("cannot be updated with this command"));
     }
 
+    #[test]
+    fn installs_plugin_from_existing_checkout() {
+        let tmp = tempfile::tempdir().unwrap();
+        let checkout = tmp.path().join("co");
+        fs::create_dir_all(&checkout).unwrap();
+        fs::write(
+            checkout.join("plugin.json"),
+            r#"{"name":"p","version":"1.0.0","description":"d"}"#,
+        )
+        .unwrap();
+        fs::create_dir_all(checkout.join("skills/s")).unwrap();
+        fs::write(
+            checkout.join("skills/s/SKILL.md"),
+            "---\nname: s\ndescription: d\n---\nb",
+        )
+        .unwrap();
+        let root = tmp.path().join("root");
+
+        let install = install_plugin_from_checkout_at_root(
+            &checkout,
+            "mysource",
+            PluginInstallOptions::default(),
+            &root,
+        )
+        .unwrap();
+        assert_eq!(install.name, "p");
+        assert_eq!(install.source, "mysource");
+    }
+
     fn write_gemini_plugin(repo: &Path, version: &str, description: &str) {
         fs::write(
             repo.join(formats::gemini::MANIFEST),
@@ -537,6 +646,46 @@ mod tests {
             format!("---\nname: audit\ndescription: {description}\n---\nDo an audit."),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn clone_marketplace_repo_ref_honors_pinned_ref() {
+        let repo = tempfile::tempdir().unwrap();
+        init_git_repo(repo.path());
+        fs::write(repo.path().join("file.txt"), "v1").unwrap();
+        commit_git_repo(repo.path(), "first");
+        let first_sha = git_rev_parse(repo.path(), "HEAD");
+        run_git(repo.path(), &["tag", "v1"]);
+
+        fs::write(repo.path().join("file.txt"), "v2").unwrap();
+        commit_git_repo(repo.path(), "second");
+        let second_sha = git_rev_parse(repo.path(), "HEAD");
+        assert_ne!(first_sha, second_sha);
+
+        let dest = tempfile::tempdir().unwrap();
+        let checkout = dest.path().join("co");
+        clone_marketplace_repo_ref(repo.path().to_str().unwrap(), &checkout, Some("v1")).unwrap();
+
+        let head = git_rev_parse(&checkout, "HEAD");
+        assert_eq!(
+            head, first_sha,
+            "checkout must be pinned to tag v1 (first commit), not the tip"
+        );
+    }
+
+    fn git_rev_parse(repo: &Path, rev: &str) -> String {
+        let output = Command::new("git")
+            .args(["rev-parse", rev])
+            .current_dir(repo)
+            .set_no_window()
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git rev-parse {rev} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
     }
 
     fn init_git_repo(repo: &Path) {
