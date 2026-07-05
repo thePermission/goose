@@ -22,7 +22,7 @@ impl Paths {
             let strategy = choose_app_strategy(AppStrategyArgs {
                 top_level_domain: "Block".to_string(),
                 author: "Block".to_string(),
-                app_name: "goose".to_string(),
+                app_name: "proose".to_string(),
             })
             .expect("goose requires a home dir");
 

@@ -61,6 +61,7 @@ do_not_version/
 /temporal.db
 /ui/desktop/src/bin/goose-scheduler-executor
 /ui/desktop/src/bin/goose
+/ui/desktop/src/bin/proose
 /.env
 
 /working_dir
