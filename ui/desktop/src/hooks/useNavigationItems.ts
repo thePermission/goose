@@ -6,6 +6,7 @@ import {
   MessageSquarePlus,
   Puzzle,
   Settings,
+  Store,
   Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -28,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'apps', path: '/apps', label: 'Apps', icon: AppWindow },
   { id: 'scheduler', path: '/schedules', label: 'Scheduler', icon: Clock },
   { id: 'extensions', path: '/extensions', label: 'Extensions', icon: Puzzle },
+  { id: 'marketplaces', path: '/marketplaces', label: 'Marketplaces', icon: Store },
   { id: 'sessions', path: '/sessions', label: 'Session History', icon: History },
 ];
 
@@ -65,6 +67,10 @@ const navItemMessages = defineMessages({
   extensions: {
     id: 'navigation.itemExtensions',
     defaultMessage: 'Extensions',
+  },
+  marketplaces: {
+    id: 'navigation.itemMarketplaces',
+    defaultMessage: 'Marketplaces',
   },
   sessions: {
     id: 'navigation.itemSessions',
