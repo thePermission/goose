@@ -80,12 +80,19 @@ describe('SourcesSection', () => {
     const removeSource = vi.fn().mockResolvedValue(undefined);
     vi.mocked(useMarketplace).mockReturnValue(
       makeCtx({
-        sources: [{ name: 'core', kind: 'claude', location: 'x', enabled: true }],
+        sources: [
+          { name: 'alpha', kind: 'claude', location: 'x', enabled: true },
+          { name: 'beta', kind: 'claude', location: 'y', enabled: true },
+        ],
         removeSource,
       })
     );
     renderWithIntl(<SourcesSection />);
-    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
-    await waitFor(() => expect(removeSource).toHaveBeenCalledWith('core'));
+    const removeAlpha = screen.getByRole('button', { name: /Remove alpha/ });
+    const removeBeta = screen.getByRole('button', { name: /Remove beta/ });
+    expect(removeAlpha).not.toBe(removeBeta);
+    fireEvent.click(removeBeta);
+    await waitFor(() => expect(removeSource).toHaveBeenCalledWith('beta'));
+    expect(removeSource).not.toHaveBeenCalledWith('alpha');
   });
 });

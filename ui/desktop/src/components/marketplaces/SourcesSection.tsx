@@ -18,7 +18,7 @@ const i18n = defineMessages({
   kindClaude: { id: 'marketplaces.sources.kindClaude', defaultMessage: 'Claude' },
   kindCodex: { id: 'marketplaces.sources.kindCodex', defaultMessage: 'Codex' },
   add: { id: 'marketplaces.sources.add', defaultMessage: 'Add' },
-  remove: { id: 'marketplaces.sources.remove', defaultMessage: 'Remove' },
+  remove: { id: 'marketplaces.sources.remove', defaultMessage: 'Remove {name}' },
   required: {
     id: 'marketplaces.sources.required',
     defaultMessage: 'Name and location are required.',
@@ -92,7 +92,7 @@ export default function SourcesSection() {
                 variant="ghost"
                 size="sm"
                 data-testid={`marketplace-source-remove-${s.name}`}
-                aria-label={intl.formatMessage(i18n.remove)}
+                aria-label={intl.formatMessage(i18n.remove, { name: s.name })}
                 onClick={() => handleRemove(s.name)}
               >
                 <Trash2 className="h-4 w-4" />
