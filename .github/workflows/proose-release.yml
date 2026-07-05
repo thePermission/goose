@@ -50,3 +50,46 @@ jobs:
         with:
           name: proose-ubuntu
           path: dist/*
+  build-almalinux-rpm:
+    runs-on: ubuntu-latest
+    container: almalinux:9
+    steps:
+      - name: Install container build deps
+        run: |
+          dnf -y install git gcc gcc-c++ make rpm-build openssl-devel pkgconfig perl which findutils tar xz gzip
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.30.0'
+      - name: Derive + stamp version
+        run: |
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${VERSION#proose-v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          bash scripts/proose-set-version.sh "$VERSION"
+      - name: Install deps
+        run: pnpm --dir ui install --frozen-lockfile
+      - name: Build proose CLI binary
+        run: cargo build --release -p goose-cli --bin proose
+      - name: Stage binary for the desktop bundle
+        run: |
+          mkdir -p ui/desktop/src/bin
+          cp -p target/release/proose ui/desktop/src/bin/proose
+      - name: Make .rpm
+        working-directory: ui/desktop
+        env:
+          ELECTRON_ARCH: x64
+        run: pnpm run make --arch=x64 --targets @electron-forge/maker-rpm
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          find ui/desktop/out/make -name '*.rpm' -exec cp {} dist/ \;
+          cp target/release/proose dist/proose-linux-x86_64-alma9
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proose-almalinux
+          path: dist/*
