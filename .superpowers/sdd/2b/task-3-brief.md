@@ -1,0 +1,428 @@
+### Task 3: Browse section (source select → browse → catalog → multi-select → install + Trust dialog)
+
+Deliverable: `BrowseSection` + `TrustDialog`. Selecting a source and clicking Browse loads the catalog; `Unsupported` (`installable === false`) rows are marked and their checkboxes disabled; multiple installable plugins can be selected; Install opens a Trust dialog showing the source (name · kind · location) and the selected plugins plus a hooks/MCP warning; confirming installs and renders per-plugin results (skills count + hooks/MCP presence from the install result) with partial-failure handling. Verified with `useMarketplace` and `toastService` mocked.
+
+**Files:**
+- Create: `ui/desktop/src/components/marketplaces/TrustDialog.tsx`
+- Create: `ui/desktop/src/components/marketplaces/BrowseSection.tsx`
+- Test: `ui/desktop/src/components/marketplaces/BrowseSection.test.tsx`
+
+**Interfaces:**
+- Consumes: `useMarketplace()` → `{ sources, catalog, browsedSource, browse, install, loading, errors }` and `type InstallOutcome` (Task 1); `toastService` (`../../toasts`); `Button` (`../ui/button`); `defineMessages`, `useIntl` (`../../i18n`); `MarketplaceSourceInfo` (`@aaif/goose-sdk`).
+- Produces:
+  - `TrustDialog` — `export interface TrustDialogProps { open: boolean; source?: MarketplaceSourceInfo; plugins: string[]; installing: boolean; onConfirm: () => void; onCancel: () => void }`, `export default function TrustDialog(props: TrustDialogProps): JSX.Element | null` (custom modal with `role="dialog"`, chosen over Radix `ui/dialog` for deterministic jsdom testing).
+  - `BrowseSection` — `export default function BrowseSection(): JSX.Element`; E2E hooks `data-testid`: `marketplace-browse-select`, `marketplace-browse`, `marketplace-install`, `marketplace-trust-confirm`; catalog checkboxes use `aria-label={plugin.name}`.
+- Design note (spec gap): `CatalogPluginInfo` has no per-plugin hooks/MCP flag, so the pre-install Trust dialog shows the **source** + a generic hooks/MCP warning; concrete per-plugin hooks/MCP presence is shown afterward from each `InstalledPluginResult_unstable` (`hasHooks`/`hasMcp`/`skills`). This satisfies "source + hooks/MCP presence" (spec §5) with the data actually available.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `ui/desktop/src/components/marketplaces/BrowseSection.test.tsx`:
+
+```tsx
+import React from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, type RenderOptions } from '@testing-library/react';
+import { IntlTestWrapper } from '../../i18n/test-utils';
+import BrowseSection from './BrowseSection';
+import { useMarketplace, type MarketplaceContextValue, type InstallOutcome } from './MarketplaceContext';
+import { toastService } from '../../toasts';
+
+vi.mock('./MarketplaceContext', () => ({ useMarketplace: vi.fn() }));
+vi.mock('../../toasts', () => ({ toastService: { error: vi.fn(), success: vi.fn() } }));
+
+function makeCtx(overrides: Partial<MarketplaceContextValue> = {}): MarketplaceContextValue {
+  return {
+    sources: [{ name: 'core', kind: 'claude', location: 'https://ex/r.git', enabled: true }],
+    catalog: [],
+    browsedSource: null,
+    installedPlugins: [],
+    loading: { sources: false, browse: false, install: false, installed: false },
+    errors: { sources: null, browse: null, install: null, installed: null },
+    refreshSources: vi.fn().mockResolvedValue(undefined),
+    addSource: vi.fn().mockResolvedValue(undefined),
+    removeSource: vi.fn().mockResolvedValue(undefined),
+    browse: vi.fn().mockResolvedValue(undefined),
+    install: vi.fn().mockResolvedValue([]),
+    refreshInstalled: vi.fn().mockResolvedValue(undefined),
+    setPluginEnabled: vi.fn().mockResolvedValue(undefined),
+    updatePlugin: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+const renderWithIntl = (ui: React.ReactElement, o?: RenderOptions) =>
+  render(ui, { wrapper: IntlTestWrapper, ...o });
+
+const catalog = [
+  { name: 'demo', description: 'a demo', installable: true, sourceKind: 'git' },
+  { name: 'legacy', description: 'old', installable: false, sourceKind: 'unsupported' },
+];
+
+beforeEach(() => vi.clearAllMocks());
+
+describe('BrowseSection', () => {
+  it('browses the selected source', () => {
+    const browse = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useMarketplace).mockReturnValue(makeCtx({ browse }));
+    renderWithIntl(<BrowseSection />);
+    fireEvent.click(screen.getByTestId('marketplace-browse'));
+    expect(browse).toHaveBeenCalledWith('core');
+  });
+
+  it('renders catalog rows and disables the Unsupported checkbox', () => {
+    vi.mocked(useMarketplace).mockReturnValue(makeCtx({ catalog, browsedSource: 'core' }));
+    renderWithIntl(<BrowseSection />);
+    expect(screen.getByRole('checkbox', { name: 'demo' })).toBeEnabled();
+    expect(screen.getByRole('checkbox', { name: 'legacy' })).toBeDisabled();
+    expect(screen.getByText(/Unsupported/)).toBeInTheDocument();
+  });
+
+  it('opens the Trust dialog showing the source and selected plugins', () => {
+    vi.mocked(useMarketplace).mockReturnValue(makeCtx({ catalog, browsedSource: 'core' }));
+    renderWithIntl(<BrowseSection />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'demo' }));
+    fireEvent.click(screen.getByTestId('marketplace-install'));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('https://ex/r.git');
+    expect(dialog).toHaveTextContent('demo');
+    expect(dialog).toHaveTextContent(/hooks that run local commands/i);
+  });
+
+  it('confirming install calls install and renders per-plugin results with partial failure', async () => {
+    const outcomes: InstallOutcome[] = [
+      {
+        plugin: 'demo',
+        ok: true,
+        result: { name: 'demo', version: '1.0.0', format: 'claude', source: 'core', skills: ['demo:x'], hasHooks: true, hasMcp: false },
+      },
+      { plugin: 'legacy', ok: false, error: 'boom' },
+    ];
+    const install = vi.fn().mockResolvedValue(outcomes);
+    vi.mocked(useMarketplace).mockReturnValue(makeCtx({ catalog, browsedSource: 'core', install }));
+    renderWithIntl(<BrowseSection />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'demo' }));
+    fireEvent.click(screen.getByTestId('marketplace-install'));
+    fireEvent.click(screen.getByTestId('marketplace-trust-confirm'));
+    await waitFor(() => expect(install).toHaveBeenCalledWith('core', ['demo']));
+    expect(
+      await screen.findByText(/demo: installed \(skills: 1, hooks: yes, MCP: no\)/)
+    ).toBeInTheDocument();
+    expect(await screen.findByText(/legacy: failed — boom/)).toBeInTheDocument();
+    await waitFor(() => expect(toastService.error).toHaveBeenCalled());
+  });
+
+  it('disables the Install button while installing and when nothing is selected', () => {
+    vi.mocked(useMarketplace).mockReturnValue(
+      makeCtx({ catalog, browsedSource: 'core', loading: { sources: false, browse: false, install: true, installed: false } })
+    );
+    renderWithIntl(<BrowseSection />);
+    expect(screen.getByTestId('marketplace-install')).toBeDisabled();
+  });
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `pnpm test:run -- src/components/marketplaces/BrowseSection.test.tsx`
+Expected: FAIL — cannot resolve import `./BrowseSection`.
+
+- [ ] **Step 3: Write the minimal implementation**
+
+Create `ui/desktop/src/components/marketplaces/TrustDialog.tsx`:
+
+```tsx
+import type { MarketplaceSourceInfo } from '@aaif/goose-sdk';
+import { Button } from '../ui/button';
+import { defineMessages, useIntl } from '../../i18n';
+
+const i18n = defineMessages({
+  title: { id: 'marketplaces.trust.title', defaultMessage: 'Confirm installation' },
+  sourceLabel: { id: 'marketplaces.trust.sourceLabel', defaultMessage: 'Source' },
+  pluginsLabel: { id: 'marketplaces.trust.pluginsLabel', defaultMessage: 'Plugins to install' },
+  warning: {
+    id: 'marketplaces.trust.warning',
+    defaultMessage:
+      'Plugins may include hooks that run local commands and MCP servers. Only install from sources you trust.',
+  },
+  cancel: { id: 'marketplaces.trust.cancel', defaultMessage: 'Cancel' },
+  confirm: { id: 'marketplaces.trust.confirm', defaultMessage: 'Install' },
+  installing: { id: 'marketplaces.trust.installing', defaultMessage: 'Installing…' },
+});
+
+export interface TrustDialogProps {
+  open: boolean;
+  source?: MarketplaceSourceInfo;
+  plugins: string[];
+  installing: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+export default function TrustDialog({
+  open,
+  source,
+  plugins,
+  installing,
+  onConfirm,
+  onCancel,
+}: TrustDialogProps) {
+  const intl = useIntl();
+  if (!open) {
+    return null;
+  }
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={intl.formatMessage(i18n.title)}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+    >
+      <div className="bg-background-primary rounded-lg border border-border-primary p-6 w-full max-w-md">
+        <h3 className="text-lg font-medium mb-3">{intl.formatMessage(i18n.title)}</h3>
+        <div className="text-sm mb-2">
+          <div className="font-medium">{intl.formatMessage(i18n.sourceLabel)}</div>
+          <div className="text-text-secondary">
+            {source ? `${source.name} · ${source.kind} · ${source.location}` : ''}
+          </div>
+        </div>
+        <div className="text-sm mb-2">
+          <div className="font-medium">{intl.formatMessage(i18n.pluginsLabel)}</div>
+          <ul className="list-disc pl-5 text-text-secondary">
+            {plugins.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
+        <p className="text-sm text-red-500 mb-4">{intl.formatMessage(i18n.warning)}</p>
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={onCancel} disabled={installing}>
+            {intl.formatMessage(i18n.cancel)}
+          </Button>
+          <Button data-testid="marketplace-trust-confirm" onClick={onConfirm} disabled={installing}>
+            {installing ? intl.formatMessage(i18n.installing) : intl.formatMessage(i18n.confirm)}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+Create `ui/desktop/src/components/marketplaces/BrowseSection.tsx`:
+
+```tsx
+import { useState } from 'react';
+import { useMarketplace, type InstallOutcome } from './MarketplaceContext';
+import { toastService } from '../../toasts';
+import { Button } from '../ui/button';
+import TrustDialog from './TrustDialog';
+import { defineMessages, useIntl } from '../../i18n';
+
+const i18n = defineMessages({
+  heading: { id: 'marketplaces.browse.heading', defaultMessage: 'Browse' },
+  selectLabel: { id: 'marketplaces.browse.selectLabel', defaultMessage: 'Marketplace' },
+  browseButton: { id: 'marketplaces.browse.browseButton', defaultMessage: 'Browse' },
+  browsing: { id: 'marketplaces.browse.browsing', defaultMessage: 'Browsing…' },
+  noSource: { id: 'marketplaces.browse.noSource', defaultMessage: 'Add a source to browse its catalog.' },
+  empty: { id: 'marketplaces.browse.empty', defaultMessage: 'No plugins in this catalog.' },
+  unsupported: { id: 'marketplaces.browse.unsupported', defaultMessage: 'Unsupported' },
+  install: { id: 'marketplaces.browse.install', defaultMessage: 'Install selected' },
+  resultsHeading: { id: 'marketplaces.browse.resultsHeading', defaultMessage: 'Installation results' },
+  resultSuccess: {
+    id: 'marketplaces.browse.resultSuccess',
+    defaultMessage: '{name}: installed (skills: {skills}, hooks: {hooks}, MCP: {mcp})',
+  },
+  resultFailure: { id: 'marketplaces.browse.resultFailure', defaultMessage: '{name}: failed — {error}' },
+  installSucceeded: { id: 'marketplaces.browse.installSucceeded', defaultMessage: 'Plugins installed' },
+  installPartial: { id: 'marketplaces.browse.installPartial', defaultMessage: 'Some plugins failed to install' },
+  yes: { id: 'marketplaces.browse.yes', defaultMessage: 'yes' },
+  no: { id: 'marketplaces.browse.no', defaultMessage: 'no' },
+});
+
+export default function BrowseSection() {
+  const intl = useIntl();
+  const { sources, catalog, browsedSource, browse, install, loading, errors } = useMarketplace();
+  const [selectedSource, setSelectedSource] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [trustOpen, setTrustOpen] = useState(false);
+  const [results, setResults] = useState<InstallOutcome[] | null>(null);
+
+  const activeSource = selectedSource || sources[0]?.name || '';
+  const selectedPlugins = [...selected];
+  const trustSource = sources.find((s) => s.name === (browsedSource ?? activeSource));
+
+  const toggleSelected = (name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  };
+
+  const handleConfirmInstall = async () => {
+    const marketplace = browsedSource ?? activeSource;
+    const outcomes = await install(marketplace, selectedPlugins);
+    setResults(outcomes);
+    setTrustOpen(false);
+    setSelected(new Set());
+    if (outcomes.every((o) => o.ok)) {
+      toastService.success({ title: intl.formatMessage(i18n.installSucceeded), msg: '' });
+    } else {
+      toastService.error({
+        title: intl.formatMessage(i18n.installPartial),
+        msg: outcomes.filter((o) => !o.ok).map((o) => o.plugin).join(', '),
+        traceback: '',
+      });
+    }
+  };
+
+  if (sources.length === 0) {
+    return (
+      <section aria-label={intl.formatMessage(i18n.heading)}>
+        <h2 className="text-lg font-medium mb-3">{intl.formatMessage(i18n.heading)}</h2>
+        <p className="text-sm text-text-secondary">{intl.formatMessage(i18n.noSource)}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-label={intl.formatMessage(i18n.heading)}>
+      <h2 className="text-lg font-medium mb-3">{intl.formatMessage(i18n.heading)}</h2>
+
+      <div className="flex items-center gap-2 mb-4">
+        <select
+          data-testid="marketplace-browse-select"
+          aria-label={intl.formatMessage(i18n.selectLabel)}
+          value={activeSource}
+          onChange={(e) => setSelectedSource(e.target.value)}
+          className="h-9 rounded-md border border-border-primary bg-background-primary px-3 text-sm"
+        >
+          {sources.map((s) => (
+            <option key={s.name} value={s.name}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <Button
+          data-testid="marketplace-browse"
+          onClick={() => browse(activeSource)}
+          disabled={loading.browse}
+        >
+          {loading.browse ? intl.formatMessage(i18n.browsing) : intl.formatMessage(i18n.browseButton)}
+        </Button>
+      </div>
+
+      {errors.browse !== null && (
+        <p role="alert" className="text-sm text-red-500 mb-3">
+          {errors.browse}
+        </p>
+      )}
+
+      {browsedSource !== null && catalog.length === 0 && !loading.browse && (
+        <p className="text-sm text-text-secondary mb-3">{intl.formatMessage(i18n.empty)}</p>
+      )}
+
+      {catalog.length > 0 && (
+        <>
+          <ul className="flex flex-col gap-2 mb-4">
+            {catalog.map((p) => (
+              <li
+                key={p.name}
+                className="flex items-start gap-3 border border-border-primary rounded-md px-3 py-2"
+              >
+                <input
+                  type="checkbox"
+                  aria-label={p.name}
+                  disabled={!p.installable}
+                  checked={selected.has(p.name)}
+                  onChange={() => toggleSelected(p.name)}
+                  className="mt-1"
+                />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">
+                    {p.name}
+                    {!p.installable && (
+                      <span className="ml-2 text-xs text-text-secondary">
+                        ({intl.formatMessage(i18n.unsupported)})
+                      </span>
+                    )}
+                  </div>
+                  {p.description && (
+                    <div className="text-xs text-text-secondary">{p.description}</div>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <Button
+            data-testid="marketplace-install"
+            onClick={() => setTrustOpen(true)}
+            disabled={selectedPlugins.length === 0 || loading.install}
+          >
+            {intl.formatMessage(i18n.install)}
+          </Button>
+        </>
+      )}
+
+      {results !== null && (
+        <div className="mt-4">
+          <h3 className="text-sm font-medium mb-2">{intl.formatMessage(i18n.resultsHeading)}</h3>
+          <ul className="flex flex-col gap-1">
+            {results.map((o) =>
+              o.ok ? (
+                <li key={o.plugin} className="text-sm text-text-secondary">
+                  {intl.formatMessage(i18n.resultSuccess, {
+                    name: o.plugin,
+                    skills: o.result.skills.length,
+                    hooks: o.result.hasHooks ? intl.formatMessage(i18n.yes) : intl.formatMessage(i18n.no),
+                    mcp: o.result.hasMcp ? intl.formatMessage(i18n.yes) : intl.formatMessage(i18n.no),
+                  })}
+                </li>
+              ) : (
+                <li key={o.plugin} className="text-sm text-red-500">
+                  {intl.formatMessage(i18n.resultFailure, { name: o.plugin, error: o.error })}
+                </li>
+              )
+            )}
+          </ul>
+        </div>
+      )}
+
+      <TrustDialog
+        open={trustOpen}
+        source={trustSource}
+        plugins={selectedPlugins}
+        installing={loading.install}
+        onConfirm={handleConfirmInstall}
+        onCancel={() => setTrustOpen(false)}
+      />
+    </section>
+  );
+}
+```
+
+- [ ] **Step 4: Run the test + typecheck + lint to verify they pass**
+
+Run: `pnpm test:run -- src/components/marketplaces/BrowseSection.test.tsx`
+Expected: PASS (5 tests).
+Run: `pnpm typecheck`
+Expected: PASS.
+Run: `pnpm exec eslint "src/components/marketplaces/**/*.{ts,tsx}" --max-warnings 0 --no-warn-ignored`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add ui/desktop/src/components/marketplaces/TrustDialog.tsx \
+        ui/desktop/src/components/marketplaces/BrowseSection.tsx \
+        ui/desktop/src/components/marketplaces/BrowseSection.test.tsx
+git commit -m "feat(marketplaces): add Browse section with catalog select, multi-install and Trust dialog"
+```
+
+---
+

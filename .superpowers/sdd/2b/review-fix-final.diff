@@ -1,0 +1,377 @@
+# Review package: a3dfe847e..143f13c08
+
+## Commits
+143f13c08 fix(marketplaces): surface mount-load errors, dedupe browse empty-state, guard in-flight toggle
+
+## Files changed
+ .../components/marketplaces/BrowseSection.test.tsx | 20 +++++++++++++++++
+ .../src/components/marketplaces/BrowseSection.tsx  |  2 +-
+ .../marketplaces/InstalledSection.test.tsx         | 26 ++++++++++++++++++++++
+ .../components/marketplaces/InstalledSection.tsx   | 12 +++++++++-
+ .../marketplaces/MarketplaceContext.test.tsx       | 16 +++++++++++++
+ .../marketplaces/SourcesSection.test.tsx           |  8 +++++++
+ .../src/components/marketplaces/SourcesSection.tsx |  8 ++++++-
+ 7 files changed, 89 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/ui/desktop/src/components/marketplaces/BrowseSection.test.tsx b/ui/desktop/src/components/marketplaces/BrowseSection.test.tsx
+index 872e64b0a..6eb535736 100644
+--- a/ui/desktop/src/components/marketplaces/BrowseSection.test.tsx
++++ b/ui/desktop/src/components/marketplaces/BrowseSection.test.tsx
+@@ -90,11 +90,31 @@ describe('BrowseSection', () => {
+     await waitFor(() => expect(toastService.error).toHaveBeenCalled());
+   });
+ 
+   it('disables the Install button while installing and when nothing is selected', () => {
+     vi.mocked(useMarketplace).mockReturnValue(
+       makeCtx({ catalog, browsedSource: 'core', loading: { sources: false, browse: false, install: true, installed: false } })
+     );
+     renderWithIntl(<BrowseSection />);
+     expect(screen.getByTestId('marketplace-install')).toBeDisabled();
+   });
++
++  it('shows the empty-catalog message when a browse genuinely returns nothing', () => {
++    vi.mocked(useMarketplace).mockReturnValue(makeCtx({ catalog: [], browsedSource: 'core' }));
++    renderWithIntl(<BrowseSection />);
++    expect(screen.getByText('No plugins in this catalog.')).toBeInTheDocument();
++    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
++  });
++
++  it('shows only the error alert, not the empty-catalog message, when a browse fails', () => {
++    vi.mocked(useMarketplace).mockReturnValue(
++      makeCtx({
++        catalog: [],
++        browsedSource: 'core',
++        errors: { sources: null, browse: 'offline', install: null, installed: null },
++      })
++    );
++    renderWithIntl(<BrowseSection />);
++    expect(screen.getByRole('alert')).toHaveTextContent('offline');
++    expect(screen.queryByText('No plugins in this catalog.')).not.toBeInTheDocument();
++  });
+ });
+diff --git a/ui/desktop/src/components/marketplaces/BrowseSection.tsx b/ui/desktop/src/components/marketplaces/BrowseSection.tsx
+index 1b51284c3..f0e3c830e 100644
+--- a/ui/desktop/src/components/marketplaces/BrowseSection.tsx
++++ b/ui/desktop/src/components/marketplaces/BrowseSection.tsx
+@@ -102,21 +102,21 @@ export default function BrowseSection() {
+           {loading.browse ? intl.formatMessage(i18n.browsing) : intl.formatMessage(i18n.browseButton)}
+         </Button>
+       </div>
+ 
+       {errors.browse !== null && (
+         <p role="alert" className="text-sm text-red-500 mb-3">
+           {errors.browse}
+         </p>
+       )}
+ 
+-      {browsedSource !== null && catalog.length === 0 && !loading.browse && (
++      {browsedSource !== null && catalog.length === 0 && !loading.browse && errors.browse === null && (
+         <p className="text-sm text-text-secondary mb-3">{intl.formatMessage(i18n.empty)}</p>
+       )}
+ 
+       {catalog.length > 0 && (
+         <>
+           <ul className="flex flex-col gap-2 mb-4">
+             {catalog.map((p) => (
+               <li
+                 key={p.name}
+                 className="flex items-start gap-3 border border-border-primary rounded-md px-3 py-2"
+diff --git a/ui/desktop/src/components/marketplaces/InstalledSection.test.tsx b/ui/desktop/src/components/marketplaces/InstalledSection.test.tsx
+index 29fa7e0d5..e755af6a9 100644
+--- a/ui/desktop/src/components/marketplaces/InstalledSection.test.tsx
++++ b/ui/desktop/src/components/marketplaces/InstalledSection.test.tsx
+@@ -64,56 +64,82 @@ describe('InstalledSection', () => {
+     renderWithIntl(<InstalledSection />);
+     const toggle = screen.getByRole('switch', { name: 'Enable demo' });
+     expect(toggle).toHaveAttribute('aria-checked', 'true');
+     fireEvent.click(toggle);
+     await waitFor(() =>
+       expect(screen.getByRole('switch', { name: 'Enable demo' })).toHaveAttribute('aria-checked', 'false')
+     );
+     expect(setPluginEnabled).toHaveBeenCalledWith('demo', false);
+   });
+ 
++  it('disables the Switch while a toggle is in flight, guarding against a rapid double-click', async () => {
++    const setPluginEnabled = vi.fn(() => new Promise<void>(() => {}));
++    vi.mocked(useMarketplace).mockReturnValue(
++      makeCtx({ installedPlugins: [plugins[0]], setPluginEnabled })
++    );
++    renderWithIntl(<InstalledSection />);
++    const toggle = screen.getByRole('switch', { name: 'Enable demo' });
++    expect(toggle).not.toBeDisabled();
++    fireEvent.click(toggle);
++    await waitFor(() => expect(toggle).toBeDisabled());
++    fireEvent.click(toggle);
++    expect(setPluginEnabled).toHaveBeenCalledTimes(1);
++  });
++
+   it('calls updatePlugin when the Update button is clicked', async () => {
+     const updatePlugin = vi.fn().mockResolvedValue(undefined);
+     vi.mocked(useMarketplace).mockReturnValue(
+       makeCtx({ installedPlugins: [plugins[0]], updatePlugin })
+     );
+     renderWithIntl(<InstalledSection />);
+     fireEvent.click(screen.getByRole('button', { name: 'Update' }));
+     await waitFor(() => expect(updatePlugin).toHaveBeenCalledWith('demo'));
+   });
+ 
+   it('shows an empty state when no plugins are installed', () => {
+     vi.mocked(useMarketplace).mockReturnValue(makeCtx({ installedPlugins: [] }));
+     renderWithIntl(<InstalledSection />);
+     expect(screen.getByText('No plugins installed yet.')).toBeInTheDocument();
+   });
+ 
++  it('renders an alert when errors.installed is set (e.g. mount-time load failure)', () => {
++    vi.mocked(useMarketplace).mockReturnValue(
++      makeCtx({
++        installedPlugins: [],
++        errors: { sources: null, browse: null, install: null, installed: 'acp unreachable' },
++      })
++    );
++    renderWithIntl(<InstalledSection />);
++    expect(screen.getByRole('alert')).toHaveTextContent('acp unreachable');
++  });
++
+   // Additional coverage beyond the brief: Task 1 review flagged that setPluginEnabled/updatePlugin
+   // throw on failure and expose no errors.* field, so this section must catch failures itself,
+   // revert the optimistic toggle, and surface a toast. Verify that behavior actually holds.
+   it('reverts the optimistic toggle and shows a toast when setPluginEnabled fails', async () => {
+     const setPluginEnabled = vi.fn().mockRejectedValue(new Error('denied'));
+     vi.mocked(useMarketplace).mockReturnValue(
+       makeCtx({ installedPlugins: [plugins[0]], setPluginEnabled })
+     );
+     const { toastService } = await import('../../toasts');
+     renderWithIntl(<InstalledSection />);
+     const toggle = screen.getByRole('switch', { name: 'Enable demo' });
+     expect(toggle).toHaveAttribute('aria-checked', 'true');
+     fireEvent.click(toggle);
+     await waitFor(() =>
+       expect(screen.getByRole('switch', { name: 'Enable demo' })).toHaveAttribute('aria-checked', 'false')
+     );
+     await waitFor(() =>
+       expect(screen.getByRole('switch', { name: 'Enable demo' })).toHaveAttribute('aria-checked', 'true')
+     );
+     expect(toastService.error).toHaveBeenCalledTimes(1);
++    expect(screen.getByRole('switch', { name: 'Enable demo' })).not.toBeDisabled();
+   });
+ 
+   it('shows a toast when updatePlugin fails and clears the busy state', async () => {
+     const updatePlugin = vi.fn().mockRejectedValue(new Error('network error'));
+     vi.mocked(useMarketplace).mockReturnValue(
+       makeCtx({ installedPlugins: [plugins[0]], updatePlugin })
+     );
+     const { toastService } = await import('../../toasts');
+     renderWithIntl(<InstalledSection />);
+     fireEvent.click(screen.getByRole('button', { name: 'Update' }));
+diff --git a/ui/desktop/src/components/marketplaces/InstalledSection.tsx b/ui/desktop/src/components/marketplaces/InstalledSection.tsx
+index 02fb2bab1..1ef10e8d0 100644
+--- a/ui/desktop/src/components/marketplaces/InstalledSection.tsx
++++ b/ui/desktop/src/components/marketplaces/InstalledSection.tsx
+@@ -18,32 +18,36 @@ const i18n = defineMessages({
+   updating: { id: 'marketplaces.installed.updating', defaultMessage: 'Updating…' },
+   updateFailed: { id: 'marketplaces.installed.updateFailed', defaultMessage: 'Failed to update plugin' },
+   toggleFailed: { id: 'marketplaces.installed.toggleFailed', defaultMessage: 'Failed to change plugin state' },
+ });
+ 
+ function InstalledPluginRow({ plugin }: { plugin: InstalledPluginInfo }) {
+   const intl = useIntl();
+   const { setPluginEnabled, updatePlugin } = useMarketplace();
+   const [enabled, setEnabled] = useState(plugin.enabled);
+   const [updating, setUpdating] = useState(false);
++  const [toggling, setToggling] = useState(false);
+ 
+   const handleToggle = async (next: boolean) => {
+     setEnabled(next);
++    setToggling(true);
+     try {
+       await setPluginEnabled(plugin.name, next);
+     } catch (e) {
+       setEnabled(!next);
+       toastService.error({
+         title: intl.formatMessage(i18n.toggleFailed),
+         msg: errorMessage(e),
+         traceback: errorMessage(e),
+       });
++    } finally {
++      setToggling(false);
+     }
+   };
+ 
+   const handleUpdate = async () => {
+     setUpdating(true);
+     try {
+       await updatePlugin(plugin.name);
+     } catch (e) {
+       toastService.error({
+         title: intl.formatMessage(i18n.updateFailed),
+@@ -73,34 +77,40 @@ function InstalledPluginRow({ plugin }: { plugin: InstalledPluginInfo }) {
+       </div>
+       <div className="flex items-center gap-3">
+         {plugin.updatable && (
+           <Button variant="secondary" size="sm" onClick={handleUpdate} disabled={updating}>
+             {updating ? intl.formatMessage(i18n.updating) : intl.formatMessage(i18n.update)}
+           </Button>
+         )}
+         <Switch
+           aria-label={intl.formatMessage(i18n.enableLabel, { name: plugin.name })}
+           checked={enabled}
++          disabled={toggling}
+           onCheckedChange={handleToggle}
+         />
+       </div>
+     </li>
+   );
+ }
+ 
+ export default function InstalledSection() {
+   const intl = useIntl();
+-  const { installedPlugins, loading } = useMarketplace();
++  const { installedPlugins, loading, errors } = useMarketplace();
+ 
+   return (
+     <section aria-label={intl.formatMessage(i18n.heading)}>
+       <h2 className="text-lg font-medium mb-3">{intl.formatMessage(i18n.heading)}</h2>
++      {errors.installed !== null && (
++        <p role="alert" className="text-sm text-red-500 mb-3">
++          {errors.installed}
++        </p>
++      )}
+       {loading.installed && installedPlugins.length === 0 ? (
+         <p className="text-sm text-text-secondary">{intl.formatMessage(i18n.loading)}</p>
+       ) : installedPlugins.length === 0 ? (
+         <p className="text-sm text-text-secondary">{intl.formatMessage(i18n.empty)}</p>
+       ) : (
+         <ul className="flex flex-col gap-2">
+           {installedPlugins.map((p) => (
+             <InstalledPluginRow key={p.name} plugin={p} />
+           ))}
+         </ul>
+diff --git a/ui/desktop/src/components/marketplaces/MarketplaceContext.test.tsx b/ui/desktop/src/components/marketplaces/MarketplaceContext.test.tsx
+index 32160505d..a8380bfd1 100644
+--- a/ui/desktop/src/components/marketplaces/MarketplaceContext.test.tsx
++++ b/ui/desktop/src/components/marketplaces/MarketplaceContext.test.tsx
+@@ -35,20 +35,36 @@ describe('useMarketplace', () => {
+     ]);
+     vi.mocked(marketplaceAcp.listInstalledPlugins).mockResolvedValue([
+       { name: 'demo', version: '1.0.0', source: 'core', enabled: true, autoUpdate: false, updatable: true },
+     ]);
+     const { result } = renderHook(() => useMarketplace(), { wrapper });
+     await waitFor(() => expect(result.current.sources).toHaveLength(1));
+     expect(result.current.sources[0].name).toBe('core');
+     expect(result.current.installedPlugins[0].name).toBe('demo');
+   });
+ 
++  it('records an error on errors.sources when the mount-time sources load fails', async () => {
++    vi.mocked(marketplaceAcp.listMarketplaces).mockRejectedValue(new Error('goosed down'));
++    const { result } = renderHook(() => useMarketplace(), { wrapper });
++    await waitFor(() => expect(result.current.errors.sources).toBe('goosed down'));
++    expect(result.current.sources).toHaveLength(0);
++    expect(result.current.loading.sources).toBe(false);
++  });
++
++  it('records an error on errors.installed when the mount-time installed load fails', async () => {
++    vi.mocked(marketplaceAcp.listInstalledPlugins).mockRejectedValue(new Error('acp unreachable'));
++    const { result } = renderHook(() => useMarketplace(), { wrapper });
++    await waitFor(() => expect(result.current.errors.installed).toBe('acp unreachable'));
++    expect(result.current.installedPlugins).toHaveLength(0);
++    expect(result.current.loading.installed).toBe(false);
++  });
++
+   it('addSource calls the wrapper then refreshes sources', async () => {
+     const { result } = renderHook(() => useMarketplace(), { wrapper });
+     await waitFor(() => expect(marketplaceAcp.listMarketplaces).toHaveBeenCalledTimes(1));
+     await act(async () => {
+       await result.current.addSource('m', 'codex', './repo');
+     });
+     expect(marketplaceAcp.addMarketplace).toHaveBeenCalledWith('m', 'codex', './repo');
+     expect(marketplaceAcp.listMarketplaces).toHaveBeenCalledTimes(2);
+   });
+ 
+diff --git a/ui/desktop/src/components/marketplaces/SourcesSection.test.tsx b/ui/desktop/src/components/marketplaces/SourcesSection.test.tsx
+index aa8c766ac..1dbad7ecc 100644
+--- a/ui/desktop/src/components/marketplaces/SourcesSection.test.tsx
++++ b/ui/desktop/src/components/marketplaces/SourcesSection.test.tsx
+@@ -39,20 +39,28 @@ describe('SourcesSection', () => {
+     vi.mocked(useMarketplace).mockReturnValue(
+       makeCtx({
+         sources: [{ name: 'core', kind: 'claude', location: 'https://ex/r.git', enabled: true }],
+       })
+     );
+     renderWithIntl(<SourcesSection />);
+     expect(screen.getByText('core')).toBeInTheDocument();
+     expect(screen.getByText(/https:\/\/ex\/r\.git/)).toBeInTheDocument();
+   });
+ 
++  it('renders an alert when errors.sources is set (e.g. mount-time load failure)', () => {
++    vi.mocked(useMarketplace).mockReturnValue(
++      makeCtx({ errors: { sources: 'goosed down', browse: null, install: null, installed: null } })
++    );
++    renderWithIntl(<SourcesSection />);
++    expect(screen.getByRole('alert')).toHaveTextContent('goosed down');
++  });
++
+   it('rejects an add with empty name or location and does not call addSource', () => {
+     const addSource = vi.fn().mockResolvedValue(undefined);
+     vi.mocked(useMarketplace).mockReturnValue(makeCtx({ addSource }));
+     renderWithIntl(<SourcesSection />);
+     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+     expect(addSource).not.toHaveBeenCalled();
+     expect(screen.getByRole('alert')).toHaveTextContent('Name and location are required.');
+   });
+ 
+   it('adds a source with the entered name, selected kind and location', async () => {
+diff --git a/ui/desktop/src/components/marketplaces/SourcesSection.tsx b/ui/desktop/src/components/marketplaces/SourcesSection.tsx
+index 4d92bdce2..920f591af 100644
+--- a/ui/desktop/src/components/marketplaces/SourcesSection.tsx
++++ b/ui/desktop/src/components/marketplaces/SourcesSection.tsx
+@@ -23,21 +23,21 @@ const i18n = defineMessages({
+     id: 'marketplaces.sources.required',
+     defaultMessage: 'Name and location are required.',
+   },
+   addFailed: { id: 'marketplaces.sources.addFailed', defaultMessage: 'Failed to add source' },
+   removeFailed: { id: 'marketplaces.sources.removeFailed', defaultMessage: 'Failed to remove source' },
+   empty: { id: 'marketplaces.sources.empty', defaultMessage: 'No sources configured yet.' },
+ });
+ 
+ export default function SourcesSection() {
+   const intl = useIntl();
+-  const { sources, addSource, removeSource } = useMarketplace();
++  const { sources, addSource, removeSource, errors } = useMarketplace();
+   const [name, setName] = useState('');
+   const [location, setLocation] = useState('');
+   const [kind, setKind] = useState('claude');
+   const [formError, setFormError] = useState<string | null>(null);
+ 
+   const handleAdd = async () => {
+     if (name.trim() === '' || location.trim() === '') {
+       setFormError(intl.formatMessage(i18n.required));
+       return;
+     }
+@@ -66,20 +66,26 @@ export default function SourcesSection() {
+         msg: errorMessage(e),
+         traceback: errorMessage(e),
+       });
+     }
+   };
+ 
+   return (
+     <section aria-label={intl.formatMessage(i18n.heading)}>
+       <h2 className="text-lg font-medium mb-3">{intl.formatMessage(i18n.heading)}</h2>
+ 
++      {errors.sources !== null && (
++        <p role="alert" className="text-sm text-red-500 mb-3">
++          {errors.sources}
++        </p>
++      )}
++
+       {sources.length === 0 ? (
+         <p className="text-sm text-text-secondary mb-3">{intl.formatMessage(i18n.empty)}</p>
+       ) : (
+         <ul className="flex flex-col gap-2 mb-4">
+           {sources.map((s) => (
+             <li
+               key={s.name}
+               className="flex items-center justify-between border border-border-primary rounded-md px-3 py-2"
+             >
+               <div className="min-w-0">

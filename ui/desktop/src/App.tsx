@@ -45,6 +45,8 @@ import { FeaturesProvider } from './contexts/FeaturesContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
+import MarketplacesView from './components/marketplaces/MarketplacesView';
+import { MarketplaceProvider } from './components/marketplaces/MarketplaceContext';
 import RecipesView from './components/recipes/RecipesView';
 import SkillsView from './components/skills/SkillsView';
 import AppsView from './components/apps/AppsView';
@@ -301,6 +303,14 @@ const ExtensionsRoute = () => {
       }}
       viewOptions={viewOptions}
     />
+  );
+};
+
+const MarketplacesRoute = () => {
+  return (
+    <MarketplaceProvider>
+      <MarketplacesView />
+    </MarketplaceProvider>
   );
 };
 
@@ -655,6 +665,7 @@ export function AppInner() {
                   </ChatProvider>
                 }
               />
+              <Route path="marketplaces" element={<MarketplacesRoute />} />
               <Route path="apps" element={<AppsView />} />
               <Route path="sessions" element={<SessionsRoute />} />
               <Route path="schedules" element={<SchedulesRoute />} />

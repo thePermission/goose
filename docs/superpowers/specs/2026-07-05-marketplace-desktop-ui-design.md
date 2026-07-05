@@ -74,7 +74,14 @@ UI-Aktion → `useMarketplace` → `acp/marketplace.ts` → `GooseExtClient` (AC
 - **Playwright-E2E** (`ui/desktop/tests/e2e`): Flow add→browse→install gegen eine **lokale Git-Fixture-Marketplace**; benötigt laufendes `goosed` — falls im CI-Rahmen nicht stabil, als **manuelles Runbook** dokumentieren.
 - Lint/Typecheck: `pnpm lint:check` (tsc + eslint `--max-warnings 0` + `i18n:check`) grün.
 
-## Offene Punkte / spätere Phasen
+## Offene Punkte / spätere Phasen (v1 deferred)
+Für Plan 2b bewusst **aus v1 ausgeklammert** (YAGNI) und mit „was noch zu tun ist"
+im Backlog festgehalten: **`docs/marketplace-ui-future-work.md`**.
 1. Auto-Update-Umschaltung pro Plugin in der UI (Kern hat `auto_update`-Flag; v1 zeigt es nur an).
 2. Fortschritts-Streaming für lange Git-Ops (v1: einfacher Spinner/Busy-State statt echtem Progress).
 3. Konflikt-UI bei gleichnamigen Plugins über mehrere Marketplaces (Plan-1-Non-Goal, weiterhin offen).
+
+## Plan-2b-Entscheidungen (2026-07-05, bestätigt)
+- **Scope = voll wie oben speziert**; die 3 offenen Punkte werden deferred (siehe Backlog).
+- **Playwright-E2E ist Ziel** (Projektregel für UI-Features); manuelles Runbook nur
+  dokumentierter Fallback bei CI-Instabilität von Playwright + `goosed`.

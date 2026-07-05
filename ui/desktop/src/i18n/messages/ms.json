@@ -41,14 +41,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Tiada apl tersedia"
   },
-  "appsView.retry": {
-    "defaultMessage": "Cuba semula"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Cuba semula"
   },
   "appsView.title": {
     "defaultMessage": "Apl"
@@ -1883,6 +1883,144 @@
   "markdownContent.thisWillOpen": {
     "defaultMessage": "Ini akan membuka: {href}"
   },
+  "marketplaces.browse.browseButton": {
+    "defaultMessage": "Browse"
+  },
+  "marketplaces.browse.browsing": {
+    "defaultMessage": "Browsing…"
+  },
+  "marketplaces.browse.empty": {
+    "defaultMessage": "No plugins in this catalog."
+  },
+  "marketplaces.browse.heading": {
+    "defaultMessage": "Browse"
+  },
+  "marketplaces.browse.install": {
+    "defaultMessage": "Install selected"
+  },
+  "marketplaces.browse.installPartial": {
+    "defaultMessage": "Some plugins failed to install"
+  },
+  "marketplaces.browse.installSucceeded": {
+    "defaultMessage": "Plugins installed"
+  },
+  "marketplaces.browse.no": {
+    "defaultMessage": "no"
+  },
+  "marketplaces.browse.noSource": {
+    "defaultMessage": "Add a source to browse its catalog."
+  },
+  "marketplaces.browse.resultFailure": {
+    "defaultMessage": "{name}: failed — {error}"
+  },
+  "marketplaces.browse.resultSuccess": {
+    "defaultMessage": "{name}: installed (skills: {skills}, hooks: {hooks}, MCP: {mcp})"
+  },
+  "marketplaces.browse.resultsHeading": {
+    "defaultMessage": "Installation results"
+  },
+  "marketplaces.browse.selectLabel": {
+    "defaultMessage": "Marketplace"
+  },
+  "marketplaces.browse.unsupported": {
+    "defaultMessage": "Unsupported"
+  },
+  "marketplaces.browse.yes": {
+    "defaultMessage": "yes"
+  },
+  "marketplaces.installed.autoUpdateOff": {
+    "defaultMessage": "Auto-update: off"
+  },
+  "marketplaces.installed.autoUpdateOn": {
+    "defaultMessage": "Auto-update: on"
+  },
+  "marketplaces.installed.empty": {
+    "defaultMessage": "No plugins installed yet."
+  },
+  "marketplaces.installed.enableLabel": {
+    "defaultMessage": "Enable {name}"
+  },
+  "marketplaces.installed.heading": {
+    "defaultMessage": "Installed"
+  },
+  "marketplaces.installed.loading": {
+    "defaultMessage": "Loading installed plugins…"
+  },
+  "marketplaces.installed.toggleFailed": {
+    "defaultMessage": "Failed to change plugin state"
+  },
+  "marketplaces.installed.update": {
+    "defaultMessage": "Update"
+  },
+  "marketplaces.installed.updateFailed": {
+    "defaultMessage": "Failed to update plugin"
+  },
+  "marketplaces.installed.updating": {
+    "defaultMessage": "Updating…"
+  },
+  "marketplaces.sources.add": {
+    "defaultMessage": "Add"
+  },
+  "marketplaces.sources.addFailed": {
+    "defaultMessage": "Failed to add source"
+  },
+  "marketplaces.sources.empty": {
+    "defaultMessage": "No sources configured yet."
+  },
+  "marketplaces.sources.heading": {
+    "defaultMessage": "Sources"
+  },
+  "marketplaces.sources.kindClaude": {
+    "defaultMessage": "Claude"
+  },
+  "marketplaces.sources.kindCodex": {
+    "defaultMessage": "Codex"
+  },
+  "marketplaces.sources.kindLabel": {
+    "defaultMessage": "Kind"
+  },
+  "marketplaces.sources.locationPlaceholder": {
+    "defaultMessage": "Git URL or path"
+  },
+  "marketplaces.sources.namePlaceholder": {
+    "defaultMessage": "Name"
+  },
+  "marketplaces.sources.remove": {
+    "defaultMessage": "Remove {name}"
+  },
+  "marketplaces.sources.removeFailed": {
+    "defaultMessage": "Failed to remove source"
+  },
+  "marketplaces.sources.required": {
+    "defaultMessage": "Name and location are required."
+  },
+  "marketplaces.trust.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "marketplaces.trust.confirm": {
+    "defaultMessage": "Install"
+  },
+  "marketplaces.trust.installing": {
+    "defaultMessage": "Installing…"
+  },
+  "marketplaces.trust.pluginsLabel": {
+    "defaultMessage": "Plugins to install"
+  },
+  "marketplaces.trust.sourceLabel": {
+    "defaultMessage": "Source"
+  },
+  "marketplaces.trust.title": {
+    "defaultMessage": "Confirm installation"
+  },
+  "marketplaces.trust.warning": {
+    "defaultMessage": "Plugins may include hooks that run local commands and MCP servers. Only install from sources you trust."
+  },
+  "marketplaces.view.description": {
+    "defaultMessage": "Manage plugin marketplaces, browse their catalogs, install plugins, and manage installed plugins."
+  },
+  "marketplaces.view.heading": {
+    "defaultMessage": "Marketplaces"
+  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "Apl"
   },
@@ -2278,6 +2416,9 @@
   },
   "navigation.itemHome": {
     "defaultMessage": "Sembang Baharu"
+  },
+  "navigation.itemMarketplaces": {
+    "defaultMessage": "Marketplaces"
   },
   "navigation.itemRecipes": {
     "defaultMessage": "Resipi"
