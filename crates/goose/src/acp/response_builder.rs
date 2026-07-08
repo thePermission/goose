@@ -33,6 +33,7 @@ struct SessionMeta<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     archived_at: Option<chrono::DateTime<chrono::Utc>>,
     user_set_name: bool,
+    done: bool,
     session_type: String,
     has_recipe: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -53,6 +54,7 @@ impl<'a> From<&'a Session> for SessionMeta<'a> {
             last_message_at: session.last_message_at,
             archived_at: session.archived_at,
             user_set_name: session.user_set_name,
+            done: session.done,
             session_type: session.session_type.to_string(),
             has_recipe: session.recipe.is_some(),
             project_id: session.project_id.as_deref(),

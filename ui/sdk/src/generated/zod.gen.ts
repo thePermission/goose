@@ -2060,6 +2060,14 @@ export const zRenameSessionRequest_unstable = z.object({
 });
 
 /**
+ * Set the `done` flag on a session.
+ */
+export const zSetSessionDoneRequest_unstable = z.object({
+    sessionId: z.string(),
+    done: z.boolean()
+});
+
+/**
  * Archive a session (soft delete).
  */
 export const zArchiveSessionRequest_unstable = z.object({
@@ -2911,6 +2919,7 @@ export const zExtRequest = z.object({
             zTruncateSessionConversationRequest_unstable,
             zUpdateSessionProjectRequest_unstable,
             zRenameSessionRequest_unstable,
+            zSetSessionDoneRequest_unstable,
             zArchiveSessionRequest_unstable,
             zUnarchiveSessionRequest_unstable,
             zCreateSourceRequest_unstable,

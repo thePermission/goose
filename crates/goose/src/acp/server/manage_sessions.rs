@@ -246,6 +246,19 @@ impl GooseAcpAgent {
         Ok(EmptyResponse {})
     }
 
+    pub(super) async fn on_set_session_done(
+        &self,
+        req: SetSessionDoneRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.session_manager
+            .update(&req.session_id)
+            .done(req.done)
+            .apply()
+            .await
+            .internal_err()?;
+        Ok(EmptyResponse {})
+    }
+
     pub(super) async fn on_archive_session(
         &self,
         req: ArchiveSessionRequest,

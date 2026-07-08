@@ -846,6 +846,15 @@ pub struct RenameSessionRequest {
     pub title: String,
 }
 
+/// Set the `done` flag on a session.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/session/done/set", response = EmptyResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct SetSessionDoneRequest {
+    pub session_id: String,
+    pub done: bool,
+}
+
 /// Archive a session (soft delete).
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/session/archive", response = EmptyResponse)]

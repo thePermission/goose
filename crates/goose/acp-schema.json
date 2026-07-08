@@ -5062,6 +5062,24 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/session/rename"
     },
+    "SetSessionDoneRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "done": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sessionId",
+        "done"
+      ],
+      "description": "Set the `done` flag on a session.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/done/set"
+    },
     "ArchiveSessionRequest_unstable": {
       "type": "object",
       "properties": {
@@ -7789,6 +7807,15 @@
                   ],
                   "description": "Params for _goose/unstable/session/rename",
                   "title": "RenameSessionRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SetSessionDoneRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/done/set",
+                  "title": "SetSessionDoneRequest_unstable"
                 },
                 {
                   "allOf": [
