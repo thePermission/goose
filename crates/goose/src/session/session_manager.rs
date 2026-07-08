@@ -23,7 +23,7 @@ use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 14;
+pub const CURRENT_SCHEMA_VERSION: i32 = 15;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
@@ -93,6 +93,8 @@ pub struct Session {
     pub project_id: Option<String>,
     #[serde(default)]
     pub last_message_snippet: Option<String>,
+    #[serde(default)]
+    pub done: bool,
 }
 
 impl From<&Session> for TokenState {
@@ -124,6 +126,7 @@ pub struct SessionUpdateBuilder<'a> {
     session_id: String,
     name: Option<String>,
     user_set_name: Option<bool>,
+    done: Option<bool>,
     session_type: Option<SessionType>,
     working_dir: Option<PathBuf>,
     extension_data: Option<ExtensionData>,
@@ -155,6 +158,7 @@ impl<'a> SessionUpdateBuilder<'a> {
             session_id,
             name: None,
             user_set_name: None,
+            done: None,
             session_type: None,
             working_dir: None,
             extension_data: None,
@@ -264,6 +268,11 @@ impl<'a> SessionUpdateBuilder<'a> {
 
     pub fn archived_at(mut self, archived_at: Option<DateTime<Utc>>) -> Self {
         self.archived_at = Some(archived_at);
+        self
+    }
+
+    pub fn done(mut self, done: bool) -> Self {
+        self.done = Some(done);
         self
     }
 
@@ -649,6 +658,7 @@ impl Default for Session {
             archived_at: None,
             project_id: None,
             last_message_snippet: None,
+            done: false,
         }
     }
 }
@@ -743,6 +753,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             archived_at: row.try_get("archived_at").ok(),
             project_id: row.try_get("project_id").ok().flatten(),
             last_message_snippet: None,
+            done: row.try_get("done").unwrap_or(false),
         })
     }
 }
@@ -864,7 +875,8 @@ impl SessionStorage {
                 model_config_json TEXT,
                 goose_mode TEXT NOT NULL DEFAULT 'auto',
                 archived_at TIMESTAMP,
-                project_id TEXT
+                project_id TEXT,
+                done INTEGER NOT NULL DEFAULT 0
             )
         "#,
         )
@@ -1326,6 +1338,19 @@ impl SessionStorage {
                     }
                 }
             }
+            15 => {
+                let has_done = sqlx::query_scalar::<_, i32>(
+                    "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'done'",
+                )
+                .fetch_one(&mut **tx)
+                .await?
+                    > 0;
+                if !has_done {
+                    sqlx::query("ALTER TABLE sessions ADD COLUMN done INTEGER NOT NULL DEFAULT 0")
+                        .execute(&mut **tx)
+                        .await?;
+                }
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -1391,7 +1416,7 @@ impl SessionStorage {
                accumulated_cost,
                schedule_id, recipe_json, user_recipe_values_json,
                provider_name, model_config_json, goose_mode,
-               archived_at, project_id
+               archived_at, project_id, done
         FROM sessions
         WHERE id = ?
     "#,
@@ -1447,6 +1472,7 @@ impl SessionStorage {
 
         add_update!(builder.name, "name");
         add_update!(builder.user_set_name, "user_set_name");
+        add_update!(builder.done, "done");
         add_update!(builder.session_type, "session_type");
         add_update!(builder.working_dir, "working_dir");
         add_update!(builder.extension_data, "extension_data");
@@ -1485,6 +1511,9 @@ impl SessionStorage {
         }
         if let Some(user_set_name) = builder.user_set_name {
             q = q.bind(user_set_name);
+        }
+        if let Some(done) = builder.done {
+            q = q.bind(done);
         }
         if let Some(session_type) = builder.session_type {
             q = q.bind(session_type.to_string());
@@ -1738,7 +1767,7 @@ impl SessionStorage {
                    s.accumulated_cost,
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
-                   s.archived_at, s.project_id,
+                   s.archived_at, s.project_id, s.done,
                    COUNT(m.id) as message_count,
                    MAX({}) as last_message_timestamp,
                    {} as sort_timestamp
@@ -3618,5 +3647,47 @@ mod tests {
         let loaded = sm.get_session("cache_id", false).await.unwrap();
         assert_eq!(loaded.usage, usage);
         assert_eq!(loaded.accumulated_usage, accumulated_usage);
+    }
+
+    #[tokio::test]
+    async fn test_done_flag_round_trips() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Done flag".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        // Default is false
+        assert!(!session.done);
+        let fresh = sm.get_session(&session.id, false).await.unwrap();
+        assert!(!fresh.done);
+
+        // Set true, reload
+        sm.update(&session.id).done(true).apply().await.unwrap();
+        let loaded = sm.get_session(&session.id, false).await.unwrap();
+        assert!(loaded.done);
+
+        // Appears in listing
+        let page = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters::default(),
+                cursor: None,
+                page_size: 50,
+                include_last_message_snippet: false,
+            })
+            .await
+            .unwrap();
+        let listed = page.sessions.iter().find(|s| s.id == session.id).unwrap();
+        assert!(listed.done);
+
+        // Unset again
+        sm.update(&session.id).done(false).apply().await.unwrap();
+        assert!(!sm.get_session(&session.id, false).await.unwrap().done);
     }
 }
