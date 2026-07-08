@@ -28,6 +28,7 @@ export const BoardCard = React.memo<BoardCardProps>(
     return (
       <Card
         data-testid="board-card"
+        data-session-id={session.id}
         draggable={column !== 'working'}
         onDragStart={(e) => e.dataTransfer.setData('text/plain', session.id)}
         onClick={() => onOpen(session.id)}
