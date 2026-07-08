@@ -1,5 +1,10 @@
 import React from 'react';
+import { defineMessages, useIntl } from '../../i18n';
 import type { BoardColumn as BoardColumnId } from './boardClassification';
+
+const i18n = defineMessages({
+  emptyColumn: { id: 'board.emptyColumn', defaultMessage: 'No sessions' },
+});
 
 interface BoardColumnProps {
   id: BoardColumnId;
@@ -11,6 +16,7 @@ interface BoardColumnProps {
 }
 
 export function BoardColumn({ id, title, count, isDropTarget, onDropSession, children }: BoardColumnProps) {
+  const intl = useIntl();
   const [over, setOver] = React.useState(false);
   return (
     <div
@@ -36,7 +42,13 @@ export function BoardColumn({ id, title, count, isDropTarget, onDropSession, chi
         <span className="text-text-secondary font-mono">{count}</span>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {count === 0 ? <div className="text-xs text-text-secondary px-1 py-4">Keine Sessions</div> : children}
+        {count === 0 ? (
+          <div className="text-xs text-text-secondary px-1 py-4">
+            {intl.formatMessage(i18n.emptyColumn)}
+          </div>
+        ) : (
+          children
+        )}
       </div>
     </div>
   );

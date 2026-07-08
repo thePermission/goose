@@ -2,8 +2,14 @@ import React from 'react';
 import { Calendar, Folder, MessageSquareText, Check, RotateCcw } from 'lucide-react';
 import { Card } from '../ui/card';
 import { SessionIndicators } from '../SessionIndicators';
+import { defineMessages, useIntl } from '../../i18n';
 import type { SessionListItem } from '../../acp/sessions';
 import type { BoardColumn } from './boardClassification';
+
+const i18n = defineMessages({
+  markDone: { id: 'board.markDone', defaultMessage: 'Done' },
+  reopen: { id: 'board.reopen', defaultMessage: 'Reopen' },
+});
 
 interface BoardCardProps {
   session: SessionListItem;
@@ -17,6 +23,7 @@ interface BoardCardProps {
 
 export const BoardCard = React.memo<BoardCardProps>(
   ({ session, column, isStreaming, hasUnread, hasError, onOpen, onToggleDone }) => {
+    const intl = useIntl();
     const lastActivity = session.lastMessageAt ?? session.updatedAt;
     return (
       <Card
@@ -52,11 +59,11 @@ export const BoardCard = React.memo<BoardCardProps>(
           >
             {column === 'done' ? (
               <>
-                <RotateCcw className="w-3 h-3" /> Wieder öffnen
+                <RotateCcw className="w-3 h-3" /> {intl.formatMessage(i18n.reopen)}
               </>
             ) : (
               <>
-                <Check className="w-3 h-3" /> Done
+                <Check className="w-3 h-3" /> {intl.formatMessage(i18n.markDone)}
               </>
             )}
           </button>

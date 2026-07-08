@@ -122,6 +122,27 @@
   "baseChat.goHome": {
     "defaultMessage": "Go home"
   },
+  "board.columnDone": {
+    "defaultMessage": "Done"
+  },
+  "board.columnWaiting": {
+    "defaultMessage": "Waiting"
+  },
+  "board.columnWorking": {
+    "defaultMessage": "Working"
+  },
+  "board.emptyColumn": {
+    "defaultMessage": "No sessions"
+  },
+  "board.markDone": {
+    "defaultMessage": "Done"
+  },
+  "board.reopen": {
+    "defaultMessage": "Reopen"
+  },
+  "board.title": {
+    "defaultMessage": "Board"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension Updated"
   },
@@ -2410,6 +2431,9 @@
   },
   "navigation.itemApps": {
     "defaultMessage": "Apps"
+  },
+  "navigation.itemBoard": {
+    "defaultMessage": "Board"
   },
   "navigation.itemExtensions": {
     "defaultMessage": "Extensions"

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { acpListSessions, acpSetSessionDone, type SessionListItem } from '../../acp/sessions';
 import { AppEvents } from '../../constants/events';
+import { defineMessages, useIntl } from '../../i18n';
 import { classifySession, type BoardColumn as BoardColumnId } from './boardClassification';
 import { BoardColumn } from './BoardColumn';
 import { BoardCard } from './BoardCard';
@@ -12,12 +13,14 @@ interface SessionStatus {
   hasUnreadActivity: boolean;
 }
 
+const i18n = defineMessages({
+  title: { id: 'board.title', defaultMessage: 'Board' },
+  columnWaiting: { id: 'board.columnWaiting', defaultMessage: 'Waiting' },
+  columnWorking: { id: 'board.columnWorking', defaultMessage: 'Working' },
+  columnDone: { id: 'board.columnDone', defaultMessage: 'Done' },
+});
+
 const COLUMN_ORDER: BoardColumnId[] = ['waiting', 'working', 'done'];
-const COLUMN_TITLES: Record<BoardColumnId, string> = {
-  waiting: 'Waiting',
-  working: 'Working',
-  done: 'Done',
-};
 
 async function loadAllSessions(cap = 300): Promise<SessionListItem[]> {
   const all: SessionListItem[] = [];
@@ -32,6 +35,15 @@ async function loadAllSessions(cap = 300): Promise<SessionListItem[]> {
 
 export default function BoardView() {
   const navigate = useNavigate();
+  const intl = useIntl();
+  const columnTitles: Record<BoardColumnId, string> = useMemo(
+    () => ({
+      waiting: intl.formatMessage(i18n.columnWaiting),
+      working: intl.formatMessage(i18n.columnWorking),
+      done: intl.formatMessage(i18n.columnDone),
+    }),
+    [intl]
+  );
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [statuses, setStatuses] = useState<Map<string, SessionStatus>>(new Map());
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -122,13 +134,13 @@ export default function BoardView() {
 
   return (
     <div className="h-full flex flex-col p-4">
-      <h1 className="text-lg font-medium mb-4">Board</h1>
+      <h1 className="text-lg font-medium mb-4">{intl.formatMessage(i18n.title)}</h1>
       <div className="flex-1 flex gap-3 overflow-x-auto">
         {COLUMN_ORDER.map((colId) => (
           <BoardColumn
             key={colId}
             id={colId}
-            title={COLUMN_TITLES[colId]}
+            title={columnTitles[colId]}
             count={columns[colId].length}
             isDropTarget={colId !== 'working'}
             onDropSession={(id) => onToggleDone(id, colId === 'done')}
