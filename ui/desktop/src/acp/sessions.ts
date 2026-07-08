@@ -24,6 +24,7 @@ interface GooseSessionInfoMeta {
   userSetName?: boolean;
   hasRecipe?: boolean;
   lastMessageSnippet?: string;
+  done?: boolean;
 }
 
 export interface SessionListItem {
@@ -40,6 +41,7 @@ export interface SessionListItem {
   modelId?: string;
   userSetName?: boolean;
   hasRecipe?: boolean;
+  done: boolean;
 }
 
 export interface SessionListPage {
@@ -128,6 +130,7 @@ function sessionInfoToListItem(s: SessionInfo): SessionListItem {
     modelId: meta.modelId,
     userSetName: meta.userSetName,
     hasRecipe: meta.hasRecipe,
+    done: meta?.done ?? false,
   };
 }
 
@@ -266,6 +269,11 @@ export async function acpCloseSession(sessionId: string): Promise<void> {
 export async function acpRenameSession(sessionId: string, title: string): Promise<void> {
   const client = await getAcpClient();
   await client.goose.sessionRename_unstable({ sessionId, title });
+}
+
+export async function acpSetSessionDone(sessionId: string, done: boolean): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.sessionDoneSet_unstable({ sessionId, done });
 }
 
 export async function acpUpdateWorkingDir(sessionId: string, workingDir: string): Promise<void> {

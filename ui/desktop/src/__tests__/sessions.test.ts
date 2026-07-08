@@ -26,6 +26,7 @@ function makeListItem(overrides: Partial<SessionListItem> = {}): SessionListItem
     updatedAt: new Date().toISOString(),
     messageCount: 0,
     createdAt: new Date().toISOString(),
+    done: false,
     ...overrides,
   };
 }

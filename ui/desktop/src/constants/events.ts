@@ -9,6 +9,7 @@ export enum AppEvents {
   SESSION_FORKED = 'session-forked',
   SESSION_NEEDS_NAME_UPDATE = 'session-needs-name-update',
   SESSION_STATUS_UPDATE = 'session-status-update',
+  SESSION_DONE_UPDATE = 'session-done-update',
   ADD_ACTIVE_SESSION = 'add-active-session',
   CLEAR_INITIAL_MESSAGE = 'clear-initial-message',
   MESSAGE_STREAM_FINISHED = 'message-stream-finished',

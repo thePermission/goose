@@ -45,6 +45,7 @@ export function sessionToListItem(s: Session): SessionListItem {
     modelId: s.model_config?.model_name ?? undefined,
     userSetName: s.user_set_name ?? undefined,
     hasRecipe: !!s.recipe,
+    done: false,
   };
 }
 
