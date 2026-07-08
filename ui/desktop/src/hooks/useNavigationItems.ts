@@ -3,6 +3,7 @@ import {
   Clock,
   FileText,
   History,
+  KanbanSquare,
   MessageSquarePlus,
   Puzzle,
   Settings,
@@ -31,6 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'extensions', path: '/extensions', label: 'Extensions', icon: Puzzle },
   { id: 'marketplaces', path: '/marketplaces', label: 'Marketplaces', icon: Store },
   { id: 'sessions', path: '/sessions', label: 'Session History', icon: History },
+  { id: 'board', path: '/board', label: 'Board', icon: KanbanSquare },
 ];
 
 /** Settings is rendered separately, pinned to the bottom of the sidebar. */
@@ -75,6 +77,10 @@ const navItemMessages = defineMessages({
   sessions: {
     id: 'navigation.itemSessions',
     defaultMessage: 'Session History',
+  },
+  board: {
+    id: 'navigation.itemBoard',
+    defaultMessage: 'Board',
   },
   settings: {
     id: 'navigation.itemSettings',

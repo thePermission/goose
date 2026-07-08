@@ -31,6 +31,7 @@ interface PairRouteState {
 }
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
+import BoardView from './components/board/BoardView';
 import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import { AppLayout } from './components/Layout/AppLayout';
@@ -205,6 +206,10 @@ const SettingsRoute = () => {
 
 const SessionsRoute = () => {
   return <SessionsView />;
+};
+
+const BoardRoute = () => {
+  return <BoardView />;
 };
 
 const SchedulesRoute = () => {
@@ -668,6 +673,7 @@ export function AppInner() {
               <Route path="marketplaces" element={<MarketplacesRoute />} />
               <Route path="apps" element={<AppsView />} />
               <Route path="sessions" element={<SessionsRoute />} />
+              <Route path="board" element={<BoardRoute />} />
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="recipes" element={<RecipesRoute />} />
               <Route path="skills" element={<SkillsRoute />} />
