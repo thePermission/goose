@@ -130,7 +130,7 @@ function sessionInfoToListItem(s: SessionInfo): SessionListItem {
     modelId: meta.modelId,
     userSetName: meta.userSetName,
     hasRecipe: meta.hasRecipe,
-    done: meta?.done ?? false,
+    done: meta.done ?? false,
   };
 }
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { acpListSessions, acpSetSessionDone, type SessionListItem } from '../../acp/sessions';
 import { AppEvents } from '../../constants/events';
