@@ -12,6 +12,7 @@ import {
   type NavItem,
 } from '../../hooks/useNavigationItems';
 import { AppEvents } from '../../constants/events';
+import { useSessionStatuses } from '../../contexts/SessionStatusContext';
 import { InlineEditText } from '../common/InlineEditText';
 import { SessionIndicators } from '../SessionIndicators';
 import { acpRenameSession, type SessionListItem } from '../../acp/sessions';
@@ -137,38 +138,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
   const { recentSessions, activeSessionId, fetchSessions, handleNavClick, handleSessionClick } =
     useNavigationSessions();
 
-  const [sessionStatuses, setSessionStatuses] = useState<Map<string, SessionStatus>>(new Map());
-
-  useEffect(() => {
-    const handleStatusUpdate = (event: Event) => {
-      const { sessionId, streamState } = (event as CustomEvent).detail;
-      setSessionStatuses((prev) => {
-        const existing = prev.get(sessionId);
-        const shouldMarkUnread = existing?.streamState === 'streaming' && streamState === 'idle';
-        const next = new Map(prev);
-        next.set(sessionId, {
-          streamState,
-          hasUnreadActivity: existing?.hasUnreadActivity || shouldMarkUnread,
-        });
-        return next;
-      });
-    };
-
-    window.addEventListener(AppEvents.SESSION_STATUS_UPDATE, handleStatusUpdate);
-    return () => window.removeEventListener(AppEvents.SESSION_STATUS_UPDATE, handleStatusUpdate);
-  }, []);
-
-  const clearUnread = useCallback((sessionId: string) => {
-    setSessionStatuses((prev) => {
-      const status = prev.get(sessionId);
-      if (status?.hasUnreadActivity) {
-        const next = new Map(prev);
-        next.set(sessionId, { ...status, hasUnreadActivity: false });
-        return next;
-      }
-      return prev;
-    });
-  }, []);
+  const { statuses: sessionStatuses, clearUnread } = useSessionStatuses();
 
   const navFocusRef = useRef<HTMLDivElement>(null);
 

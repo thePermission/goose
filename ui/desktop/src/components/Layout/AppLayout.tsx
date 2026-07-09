@@ -8,6 +8,7 @@ import { Button } from '../ui/button';
 import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
 import { NavigationProvider, useNavigationContext } from './NavigationContext';
+import { SessionStatusProvider } from '../../contexts/SessionStatusContext';
 import { Navigation } from './NavigationPanel';
 import { NAV_DIMENSIONS, Z_INDEX } from './constants';
 import { cn } from '../../utils';
@@ -127,8 +128,10 @@ interface AppLayoutProps {
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ activeSessions }) => {
   return (
-    <NavigationProvider>
-      <AppLayoutContent activeSessions={activeSessions} />
-    </NavigationProvider>
+    <SessionStatusProvider>
+      <NavigationProvider>
+        <AppLayoutContent activeSessions={activeSessions} />
+      </NavigationProvider>
+    </SessionStatusProvider>
   );
 };

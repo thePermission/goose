@@ -6,12 +6,7 @@ import { defineMessages, useIntl } from '../../i18n';
 import { classifySession, type BoardColumn as BoardColumnId } from './boardClassification';
 import { BoardColumn } from './BoardColumn';
 import { BoardCard } from './BoardCard';
-
-type StreamState = 'idle' | 'loading' | 'streaming' | 'error';
-interface SessionStatus {
-  streamState: StreamState;
-  hasUnreadActivity: boolean;
-}
+import { useSessionStatuses } from '../../contexts/SessionStatusContext';
 
 const i18n = defineMessages({
   title: { id: 'board.title', defaultMessage: 'Board' },
@@ -45,7 +40,7 @@ export default function BoardView() {
     [intl]
   );
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
-  const [statuses, setStatuses] = useState<Map<string, SessionStatus>>(new Map());
+  const { statuses } = useSessionStatuses();
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const refresh = useCallback(() => {
@@ -55,28 +50,6 @@ export default function BoardView() {
   useEffect(() => {
     refresh();
   }, [refresh]);
-
-  // Live stream/unread state (mirrors NavigationPanel)
-  useEffect(() => {
-    const onStatus = (event: Event) => {
-      const { sessionId, streamState } = (event as CustomEvent).detail as {
-        sessionId: string;
-        streamState: StreamState;
-      };
-      setStatuses((prev) => {
-        const existing = prev.get(sessionId);
-        const shouldMarkUnread = existing?.streamState === 'streaming' && streamState === 'idle';
-        const next = new Map(prev);
-        next.set(sessionId, {
-          streamState,
-          hasUnreadActivity: existing?.hasUnreadActivity || shouldMarkUnread,
-        });
-        return next;
-      });
-    };
-    window.addEventListener(AppEvents.SESSION_STATUS_UPDATE, onStatus);
-    return () => window.removeEventListener(AppEvents.SESSION_STATUS_UPDATE, onStatus);
-  }, []);
 
   // Refresh list on create/delete/rename/done
   useEffect(() => {
