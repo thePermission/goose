@@ -10,15 +10,18 @@ export interface BoardClassifyInput {
 
 /**
  * Ordnet eine Session genau einer Board-Spalte zu.
- * Priorität: Done (nur ≤ 48h alt) > Working (streamt) > Waiting.
+ * Priorität: Working (streamt) > Done (nur ≤ 48h alt) > Waiting.
+ * Eine erneut streamende Session gilt also als Working, auch wenn sie als done
+ * markiert war (Reaktivierung — das done-Flag wird serverseitig beim Anhängen
+ * der neuen Nachricht gelöscht).
  * Rückgabe `null` => nicht anzeigen (Done und letzte Aktivität > 48h her).
  */
 export function classifySession(input: BoardClassifyInput, nowMs: number): BoardColumn | null {
-  if (input.done) {
-    return nowMs - input.lastActivityMs <= DONE_TTL_MS ? 'done' : null;
-  }
   if (input.streamState === 'streaming') {
     return 'working';
+  }
+  if (input.done) {
+    return nowMs - input.lastActivityMs <= DONE_TTL_MS ? 'done' : null;
   }
   return 'waiting';
 }

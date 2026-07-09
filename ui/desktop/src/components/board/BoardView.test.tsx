@@ -93,4 +93,35 @@ describe('BoardView live status', () => {
     });
     expect(within(screen.getByTestId('board-column-waiting')).queryByTestId('board-card')).toBeNull();
   });
+
+  // Reactivation: a session sitting in Done that starts streaming again (the
+  // user reopened it and sent a message) must leave Done and show as Working.
+  // The backend clears the done flag on the new message; the board refetches to
+  // reflect it.
+  it('moves a done session back to Working when it starts streaming again', async () => {
+    const doneSession = { ...mockSession, done: true };
+    const reopenedSession = { ...mockSession, done: false };
+    acpListSessions
+      .mockReset()
+      .mockResolvedValueOnce({ sessions: [doneSession], nextCursor: null })
+      .mockResolvedValue({ sessions: [reopenedSession], nextCursor: null });
+
+    render(<Harness showBoard />);
+
+    const done = await screen.findByTestId('board-column-done');
+    await waitFor(() => {
+      expect(within(done).getByTestId('board-card')).toHaveAttribute('data-session-id', 'sess-1');
+    });
+
+    // new message -> session streams again
+    emitStatus('sess-1', 'streaming');
+
+    const working = screen.getByTestId('board-column-working');
+    await waitFor(() => {
+      expect(within(working).getByTestId('board-card')).toHaveAttribute('data-session-id', 'sess-1');
+    });
+    expect(within(screen.getByTestId('board-column-done')).queryByTestId('board-card')).toBeNull();
+    // board refetched to pick up the server-cleared done flag
+    expect(acpListSessions.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
 });

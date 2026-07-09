@@ -63,6 +63,16 @@ export default function BoardView() {
     return () => events.forEach((e) => window.removeEventListener(e, refresh));
   }, [refresh]);
 
+  // A "done" session that starts streaming was reactivated by a new message.
+  // The backend clears its done flag on message append, so refetch to reflect
+  // it — the card then leaves Done (Working while streaming, Waiting when idle).
+  useEffect(() => {
+    const reactivated = sessions.some(
+      (s) => s.done && statuses.get(s.id)?.streamState === 'streaming'
+    );
+    if (reactivated) refresh();
+  }, [sessions, statuses, refresh]);
+
   // Re-evaluate 48h boundary periodically
   useEffect(() => {
     const t = setInterval(() => setNowMs(Date.now()), 60_000);

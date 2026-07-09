@@ -28,7 +28,7 @@ describe('classifySession', () => {
     expect(classifySession({ done: true, lastActivityMs: NOW - DONE_TTL_MS - 1000 }, NOW)).toBeNull();
   });
 
-  it('done wins over streaming', () => {
-    expect(classifySession({ done: true, lastActivityMs: NOW, streamState: 'streaming' }, NOW)).toBe('done');
+  it('streaming wins over done (reactivation)', () => {
+    expect(classifySession({ done: true, lastActivityMs: NOW, streamState: 'streaming' }, NOW)).toBe('working');
   });
 });

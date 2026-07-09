@@ -1653,7 +1653,9 @@ impl SessionStorage {
         .execute(&mut *tx)
         .await?;
 
-        sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
+        // New activity reactivates a "done" session: appending a message clears
+        // the done flag so the board moves it back out of the Done column.
+        sqlx::query("UPDATE sessions SET updated_at = datetime('now'), done = 0 WHERE id = ?")
             .bind(session_id)
             .execute(&mut *tx)
             .await?;
@@ -3689,5 +3691,34 @@ mod tests {
         // Unset again
         sm.update(&session.id).done(false).apply().await.unwrap();
         assert!(!sm.get_session(&session.id, false).await.unwrap().done);
+    }
+
+    #[tokio::test]
+    async fn test_add_message_clears_done() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Reactivate".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        // Mark the session done, like the board's "Done" toggle.
+        sm.update(&session.id).done(true).apply().await.unwrap();
+        assert!(sm.get_session(&session.id, false).await.unwrap().done);
+
+        // Sending a new message reactivates the session: done must be cleared.
+        sm.add_message(&session.id, &Message::user().with_text("back to work"))
+            .await
+            .unwrap();
+
+        assert!(
+            !sm.get_session(&session.id, false).await.unwrap().done,
+            "adding a message should clear the done flag (reactivation)"
+        );
     }
 }
